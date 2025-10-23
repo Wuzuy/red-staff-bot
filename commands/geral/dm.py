@@ -37,16 +37,18 @@ class DM(commands.Cog):
         status_embed = self.client.create_embed("Envio em Massa Iniciado", f"Preparando para enviar mensagem para {total_members} membros.")
         status_message = await ctx.send(embed=status_embed)
 
-        success_count = 0
-        fail_count = 0
+        successful_members = []
+        failed_members = []
         message_dm = f"**{ctx.guild.name}**\n{message}"
 
         for i, member in enumerate(members_to_dm):
             try:
                 await member.send(message_dm)
-                success_count += 1
+                successful_members.append(member)
             except (discord.Forbidden, discord.HTTPException):
-                fail_count += 1
+                failed_members.append(member)
+            
+            success_count, fail_count = len(successful_members), len(failed_members)
             
             if (i + 1) % 10 == 0 or (i + 1) == total_members:
                 progress_embed = self.client.create_embed("Envio em Andamento", "", 0xf1c40f)
@@ -55,7 +57,7 @@ class DM(commands.Cog):
                 progress_embed.add_field(name="Falhas:", value=f"`{fail_count}`", inline=True)
                 await status_message.edit(embed=progress_embed)
             
-            await asyncio.sleep(8.0)
+            await asyncio.sleep(2.0)
 
         final_embed = self.client.create_embed("Relatório de Envio de DM", "Processo concluído!", 0x2ecc71)
         final_embed.add_field(name="Membros Alcançados", value=f"`{success_count}`", inline=True)
@@ -65,11 +67,16 @@ class DM(commands.Cog):
         
         log_embed = self.client.create_embed("Log: Envio de DM em Massa", "", 0xffa500)
         log_embed.add_field(name="Autor", value=ctx.author.mention, inline=False)
-        log_embed.add_field(name="Alcançados", value=f"`{success_count}`", inline=True)
-        log_embed.add_field(name="Falhas", value=f"`{fail_count}`", inline=True)
+        log_embed.add_field(name="Alcançados", value=f"`{len(successful_members)}`", inline=True)
+        log_embed.add_field(name="Falhas", value=f"`{len(failed_members)}`", inline=True)
         log_embed.add_field(name="Mensagem", value=f"```\n{message}\n```", inline=False)
-        await self.client.log_to_channel(ctx.guild, log_embed)
 
+        # Cria a view do log com as listas de membros
+        log_view = self.client.DmLogView(
+            author=ctx.author, guild=ctx.guild, successful_members=successful_members, failed_members=failed_members
+        )
+        await self.client.log_to_channel(ctx.guild, log_embed, view=log_view)
+        
     @dm.error
     async def dm_error(self, ctx: commands.Context, error):
         """Trata erros de sintaxe e permissão para o dm."""

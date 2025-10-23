@@ -64,7 +64,7 @@ class DMAll(commands.Cog):
                 progress_embed.add_field(name="Falhas:", value=f"`{fail_count}`", inline=True)
                 await status_message.edit(embed=progress_embed)
             
-            await asyncio.sleep(8.0)
+            await asyncio.sleep(2.0)
         
         final_embed = self.client.create_embed("Relatório de Envio Global", "Processo concluído!", 0x2ecc71)
         final_embed.add_field(name="Alcançados", value=f"`{success_count}`", inline=True)
