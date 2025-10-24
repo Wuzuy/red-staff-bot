@@ -6,6 +6,6 @@ if __name__ == "__main__":
     if not DISCORD_TOKEN:
         print("Erro: O DISCORD_TOKEN não foi encontrado. Verifique seu arquivo .env")
     else:
-        bot = RedCommunityBot()
+        bot = RedCommunityBot( )
         bot.run(DISCORD_TOKEN)
 
