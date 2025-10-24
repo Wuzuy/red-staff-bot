@@ -84,15 +84,9 @@ class ConfigPerm(commands.Cog):
                 f"Apenas Super Admins do bot podem configurá-lo.",
                 delete_after=10
             )
-        elif isinstance(error, commands.MissingRequiredArgument):
+        elif isinstance(error, (commands.MissingRequiredArgument, commands.BadArgument)):
             await ctx.send(
-                f"{ctx.author.mention}, você esqueceu de um argumento.\n"
-                f"**Sintaxe correta:** `r.configperm <add|remove> @cargo`",
-                delete_after=10
-            )
-        elif isinstance(error, commands.BadArgument):
-            await ctx.send(
-                f"{ctx.author.mention}, não consegui encontrar o cargo que você mencionou.\n"
+                f"{ctx.author.mention}, parâmetros do comando inválido.\n"
                 f"**Sintaxe correta:** `r.configperm <add|remove> @cargo`",
                 delete_after=10
             )

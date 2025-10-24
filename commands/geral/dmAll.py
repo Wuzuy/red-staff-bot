@@ -18,45 +18,31 @@ class DMAll(commands.Cog):
         except discord.HTTPException:
             pass
 
-        with sqlite3.connect(DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT guild_id, role_id FROM dm_roles")
-            # Cria um dicionário: {guild_id: {role_id1, role_id2, ...}}
-            guild_to_roles = {}
-            for guild_id, role_id in cursor.fetchall():
-                if guild_id not in guild_to_roles:
-                    guild_to_roles[guild_id] = set()
-                guild_to_roles[guild_id].add(role_id)
-
         unique_members = set()
         for guild in self.client.guilds:
-            allowed_roles = guild_to_roles.get(guild.id)
-            if not allowed_roles:
-                # Se o servidor não tem cargos configurados, adiciona todos os membros
-                for member in guild.members:
-                    if not member.bot:
-                        unique_members.add(member)
-            else:
-                # Se tem cargos, adiciona apenas membros com esses cargos
-                for member in guild.members:
-                    if not member.bot and any(role.id in allowed_roles for role in member.roles):
-                        unique_members.add(member)
+            # Adiciona todos os membros (não-bots) de cada servidor ao conjunto.
+            # O 'set' garante que cada membro seja contado apenas uma vez.
+            for member in guild.members:
+                if not member.bot:
+                    unique_members.add(member)
 
         total_unique = len(unique_members)
         
         status_embed = self.client.create_embed("Envio Global Iniciado", f"Preparando para enviar a mensagem para {total_unique} membros únicos.", 0xe74c3c)
         status_message = await ctx.send(embed=status_embed)
 
-        success_count, fail_count = 0, 0
-        message_to_send = f"**Mensagem de {self.client.user.name}**\n{message}"
+        successful_members = []
+        failed_members = []
+        message_to_send = f"# <:red1:1431082037900738620><:red2:1431082036147523725>\n\n{message}"
 
         for i, member in enumerate(unique_members):
             try:
                 await member.send(message_to_send)
-                success_count += 1
+                successful_members.append(member)
             except (discord.Forbidden, discord.HTTPException):
-                fail_count += 1
+                failed_members.append(member)
             
+            success_count, fail_count = len(successful_members), len(failed_members)
             if (i + 1) % 10 == 0 or (i + 1) == total_unique:
                 progress_embed = self.client.create_embed("Envio Global em Andamento...", "", 0xf1c40f)
                 progress_embed.add_field(name="Progresso:", value=f"{i + 1}/{total_unique}", inline=False)
@@ -64,13 +50,26 @@ class DMAll(commands.Cog):
                 progress_embed.add_field(name="Falhas:", value=f"`{fail_count}`", inline=True)
                 await status_message.edit(embed=progress_embed)
             
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(5.0)
         
         final_embed = self.client.create_embed("Relatório de Envio Global", "Processo concluído!", 0x2ecc71)
         final_embed.add_field(name="Alcançados", value=f"`{success_count}`", inline=True)
         final_embed.add_field(name="Falhas", value=f"`{fail_count}`", inline=True)
         await status_message.edit(embed=final_embed)
         await status_message.delete(delay=15)
+
+        # Envia o log para todos os canais de log configurados
+        log_embed = self.client.create_embed("Log: Envio de DM Global", "", 0xffa500)
+        log_embed.add_field(name="Autor", value=ctx.author.mention, inline=False)
+        log_embed.add_field(name="Alcançados", value=f"`{len(successful_members)}`", inline=True)
+        log_embed.add_field(name="Falhas", value=f"`{len(failed_members)}`", inline=True)
+        log_embed.add_field(name="Mensagem", value=f"```\n{message}\n```", inline=False)
+
+        log_view = self.client.DmLogView(
+            author=ctx.author, successful_members=successful_members, failed_members=failed_members
+        )
+        for guild in self.client.guilds:
+            await self.client.log_to_channel(guild, log_embed, view=log_view)
 
     @dmall.error
     async def dmall_error(self, ctx: commands.Context, error):
@@ -88,8 +87,8 @@ class DMAll(commands.Cog):
             )
         elif isinstance(error, commands.MissingRequiredArgument):
             await ctx.send(
-                f"{ctx.author.mention}, você esqueceu de escrever a mensagem.\n"
-                f"**Sintaxe correta:** `r.dmall <mensagem>`",
+                f"{ctx.author.mention}, parâmetros do comando inválido.\n"
+                f"Tente: `r.dmall <mensagem>`",
                 delete_after=10
             )
         else:

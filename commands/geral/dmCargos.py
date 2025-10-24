@@ -6,7 +6,7 @@ class DMCargos(commands.Cog):
     def __init__(self, client: commands.Bot):
         self.client = client
 
-    @commands.command(name="dmcargos")
+    @commands.command(name="dmcargos", aliases=["dmconfig"])
     @commands.check(has_admin_role)
     async def dmcargos(self, ctx: commands.Context):
         """Abre um painel para configurar quais cargos recebem DMs em massa."""

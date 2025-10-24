@@ -36,8 +36,7 @@ class ConfigLog(commands.Cog):
             f"O canal de log foi definido com sucesso para {canal.mention}.",
             color=0x2ecc71
         )
-        view = self.client.create_deletable_message_view(ctx.author)
-        await ctx.send(embed=embed, view=view)
+        await ctx.send(embed=embed, delete_after=20)
 
     @configlog.error
     async def configlog_error(self, ctx: commands.Context, error):
@@ -53,16 +52,10 @@ class ConfigLog(commands.Cog):
                 f"Apenas administradores ou cargos configurados podem usar.",
                 delete_after=10
             )
-        elif isinstance(error, commands.MissingRequiredArgument):
+        elif isinstance(error, (commands.MissingRequiredArgument, commands.BadArgument)):
             await ctx.send(
-                f"{ctx.author.mention}, você esqueceu de mencionar o canal.\n"
-                f"**Sintaxe correta:** `r.configlog #canal`",
-                delete_after=10
-            )
-        elif isinstance(error, commands.BadArgument):
-            await ctx.send(
-                f"{ctx.author.mention}, não consegui encontrar o canal de texto que você mencionou.\n"
-                f"**Sintaxe correta:** `r.configlog #canal`",
+                f"{ctx.author.mention}, parâmetros do comando inválido.\n"
+                f"Tente: `r.configlog #canal`",
                 delete_after=10
             )
         else:

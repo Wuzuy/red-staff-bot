@@ -39,7 +39,7 @@ class DM(commands.Cog):
 
         successful_members = []
         failed_members = []
-        message_dm = f"**{ctx.guild.name}**\n{message}"
+        message_dm = f"# <:red1:1431082037900738620><:red2:1431082036147523725>\n\n{message}"
 
         for i, member in enumerate(members_to_dm):
             try:
@@ -57,7 +57,7 @@ class DM(commands.Cog):
                 progress_embed.add_field(name="Falhas:", value=f"`{fail_count}`", inline=True)
                 await status_message.edit(embed=progress_embed)
             
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(5.0)
 
         final_embed = self.client.create_embed("Relatório de Envio de DM", "Processo concluído!", 0x2ecc71)
         final_embed.add_field(name="Membros Alcançados", value=f"`{success_count}`", inline=True)
@@ -73,7 +73,7 @@ class DM(commands.Cog):
 
         # Cria a view do log com as listas de membros
         log_view = self.client.DmLogView(
-            author=ctx.author, guild=ctx.guild, successful_members=successful_members, failed_members=failed_members
+            author=ctx.author, successful_members=successful_members, failed_members=failed_members
         )
         await self.client.log_to_channel(ctx.guild, log_embed, view=log_view)
         
@@ -93,8 +93,8 @@ class DM(commands.Cog):
             )
         elif isinstance(error, commands.MissingRequiredArgument):
             await ctx.send(
-                f"{ctx.author.mention}, você esqueceu de escrever a mensagem.\n"
-                f"**Sintaxe correta:** `r.dm <mensagem>`",
+                f"{ctx.author.mention}, parâmetros do comando inválido.\n"
+                f"Tente: `r.dm <mensagem>`",
                 delete_after=10
             )
         else:

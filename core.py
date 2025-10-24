@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import os
+import io
 import sqlite3
 from datetime import datetime, timezone
 
@@ -67,12 +68,13 @@ class RedCommunityBot(commands.Bot):
     @staticmethod
     def create_embed(title, description, color=0xff0000):
         """Cria um objeto discord.Embed padronizado."""
-        return discord.Embed(
+        embed = discord.Embed(
             title=title,
             description=description,
             color=color,
             timestamp=datetime.now(timezone.utc)
         )
+        return embed
 
     @staticmethod
     async def delete_message_user(ctx):
@@ -165,7 +167,7 @@ class RedCommunityBot(commands.Bot):
             new_embed = await self.generate_embed()
             await interaction.response.edit_message(embed=new_embed, view=self)
 
-        @discord.ui.button(label="Adicionar", style=discord.ButtonStyle.success, emoji="➕", row=0)
+        @discord.ui.button(label="Adicionar", style=discord.ButtonStyle.success, emoji="<:adicionar:EMOJI_ADICIONAR>", row=0)
         async def add_role(self, interaction: discord.Interaction, button: discord.ui.Button):
             select = discord.ui.RoleSelect(placeholder="Selecione os cargos para adicionar...", min_values=1, max_values=25)
             
@@ -182,7 +184,7 @@ class RedCommunityBot(commands.Bot):
             self.add_item(select)
             await interaction.response.edit_message(view=self)
 
-        @discord.ui.button(label="Remover", style=discord.ButtonStyle.danger, emoji="➖", row=0)
+        @discord.ui.button(label="Remover", style=discord.ButtonStyle.danger, emoji="<:remover:EMOJI_REMOVER>", row=0)
         async def remove_role(self, interaction: discord.Interaction, button: discord.ui.Button):
             with sqlite3.connect(DB_FILE) as conn:
                 cursor = conn.cursor()
@@ -209,7 +211,7 @@ class RedCommunityBot(commands.Bot):
             self.add_item(select)
             await interaction.response.edit_message(view=self)
 
-        @discord.ui.button(label="Adicionar Todos", style=discord.ButtonStyle.secondary, emoji="✅", row=1)
+        @discord.ui.button(label="Adicionar Todos", style=discord.ButtonStyle.secondary, emoji="<:correto:EMOJI_CORRETO>", row=1)
         async def add_all(self, interaction: discord.Interaction, button: discord.ui.Button):
             with sqlite3.connect(DB_FILE) as conn:
                 cursor = conn.cursor()
@@ -219,7 +221,7 @@ class RedCommunityBot(commands.Bot):
                 conn.commit()
             await self.update_message(interaction)
 
-        @discord.ui.button(label="Remover Todos", style=discord.ButtonStyle.secondary, emoji="❌", row=1)
+        @discord.ui.button(label="Remover Todos", style=discord.ButtonStyle.secondary, emoji="<:errado:EMOJI_ERRADO>", row=1)
         async def remove_all(self, interaction: discord.Interaction, button: discord.ui.Button):
             with sqlite3.connect(DB_FILE) as conn:
                 cursor = conn.cursor()
@@ -227,9 +229,44 @@ class RedCommunityBot(commands.Bot):
                 conn.commit()
             await self.update_message(interaction)
 
+    class DmLogView(BaseView):
+        """View para os logs de DM, com botões para ver listas de sucesso e falha."""
+        def __init__(self, author: discord.User, successful_members: list, failed_members: list):
+            super().__init__(author=author, timeout=None) # A view no log não expira
+            self.successful_members = successful_members
+            self.failed_members = failed_members
+            
+            # Desabilita botões se as listas estiverem vazias
+            if not self.successful_members:
+                self.show_success.disabled = True
+            if not self.failed_members:
+                self.show_failures.disabled = True
+
+        async def _send_members_file(self, interaction: discord.Interaction, members: list, filename: str, title: str):
+            """Gera um arquivo de texto e o envia de forma efêmera."""
+            if not members:
+                await interaction.response.send_message(f"Não há membros na lista '{title}'.", ephemeral=True)
+                return
+
+            # Cria o conteúdo do arquivo
+            content = "\n".join([f"{member.name} ({member.id})" for member in members])
+            file_bytes = io.BytesIO(content.encode('utf-8'))
+            
+            file = discord.File(file_bytes, filename=filename)
+            await interaction.response.send_message(f"Aqui está a lista de **{title}**:", file=file, ephemeral=True)
+
+        @discord.ui.button(label="Ver Sucessos", style=discord.ButtonStyle.success, emoji="<:correto:EMOJI_CORRETO>")
+        async def show_success(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await self._send_members_file(interaction, self.successful_members, "sucessos.txt", "Membros Alcançados")
+
+        @discord.ui.button(label="Ver Falhas", style=discord.ButtonStyle.danger, emoji="<:errado:EMOJI_ERRADO>")
+        async def show_failures(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await self._send_members_file(interaction, self.failed_members, "falhas.txt", "Falhas de Envio")
+
+
     # --- MÉTODO PARA LOGS ---
 
-    async def log_to_channel(self, guild: discord.Guild, embed: discord.Embed):
+    async def log_to_channel(self, guild: discord.Guild, embed: discord.Embed, *, view: discord.ui.View = None):
         """Busca o canal de log no DB e envia o embed."""
         
         with sqlite3.connect(DB_FILE) as conn:
@@ -243,7 +280,7 @@ class RedCommunityBot(commands.Bot):
             
             if log_channel:
                 try:
-                    await log_channel.send(embed=embed)
+                    await log_channel.send(embed=embed, view=view)
                 except discord.Forbidden:
                     print(f"Sem permissão no canal de log {log_channel_id} do servidor {guild.name}.")
             else:
