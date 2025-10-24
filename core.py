@@ -113,12 +113,14 @@ class RedCommunityBot(commands.Bot):
         for month_num in range(1, 13):
             if birthdays_by_month[month_num]: # Se houver aniversários neste mês
                 month_name = self.PORTUGUESE_MONTH_NAMES[month_num]
-                # Cabeçalho do mês no formato solicitado: __MÊS__
-                content += f"__{month_name}__\n\n"
+                content += f"**__{month_name}__**\n\n"
                 for bd in sorted(birthdays_by_month[month_num], key=lambda x: x['day']):
-                    # Formata a data como `DD/MM` com zeros à esquerda e mostra a menção em negrito
-                    day = int(bd['day'])
-                    content += f"> :RED_T1_SETA: `{day:02d}/{month_num:02d}` - **<@{bd['user_id']}>**\n"
+                    user = self.get_user(bd['user_id']) # Tenta pegar o usuário do cache
+                    if user:
+                        content += f"> <:seta1:EMOJI_SETA> `{bd['day']}` - <@{bd['user_id']}>\n"
+                    else:
+                        # Se o usuário não estiver no cache, apenas mostra o ID ou um placeholder
+                        content += f"> <:seta1:EMOJI_SETA> `{bd['day']}` - Usuário desconhecido ({bd['user_id']})\n"
                 content += "\n"  # Espaço entre os meses
         
         if not content:
