@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 
 # Importa o check específico do core
-from core import is_call_server
+from utils.checks import is_call_server
 
 class CallCommands(commands.Cog):
     def __init__(self, client: commands.Bot):

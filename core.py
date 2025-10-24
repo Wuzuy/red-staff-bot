@@ -9,18 +9,6 @@ import config
 from database.database_manager import initialize_database, DB_FILE
 import discord.ui
 
-# --- CHECAGENS DE PERMISSÃO (DECORATORS) ---
-
-def is_call_server():
-    async def predicate(ctx):
-        return ctx.guild.id in config.CALL_SERVERS_IDS
-    return commands.check(predicate)
-
-def is_chat_server():
-    async def predicate(ctx):
-        return ctx.guild.id in config.CHAT_SERVERS_IDS
-    return commands.check(predicate)
-
 
 class RedCommunityBot(commands.Bot):
     def __init__(self):
@@ -38,6 +26,13 @@ class RedCommunityBot(commands.Bot):
             per=3.0,
             type=commands.BucketType.user
         )
+        
+        self.PORTUGUESE_MONTH_NAMES = {
+            1: "JANEIRO", 2: "FEVEREIRO", 3: "MARÇO", 4: "ABRIL",
+            5: "MAIO", 6: "JUNHO", 7: "JULHO", 8: "AGOSTO",
+            9: "SETEMBRO", 10: "OUTUBRO", 11: "NOVEMBRO", 12: "DEZEMBRO"
+        }
+
 
     # --- MÉTODO DE SETUP E EVENTOS ---
 
@@ -57,6 +52,9 @@ class RedCommunityBot(commands.Bot):
                             print(f"Cog carregado: {module_path}")
                         except Exception as e:
                             print(f"Falha ao carregar o cog {module_path}: {e}")
+
+        # Adiciona as views persistentes para que funcionem após o reinício do bot
+        self.add_view(self.BirthdayRegisterView(author=self.user))
 
     async def on_ready(self):
         """Evento executado quando o bot está online e pronto."""
@@ -98,6 +96,72 @@ class RedCommunityBot(commands.Bot):
         )
         embed.set_author(name=f"{guild.name} - {author.display_name}", icon_url=author.display_avatar.url)
         return embed
+
+    # --- NOVAS FUNÇÕES PARA ANIVERSÁRIOS ---
+    async def _get_birthday_embed_content(self, guild_id: int) -> str:
+        """Gera o conteúdo formatado para o embed de aniversários."""
+        birthdays_by_month = {i: [] for i in range(1, 13)} # 1=Jan, 12=Dec
+
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id, birthday_month, birthday_day FROM birthdays WHERE guild_id = ? ORDER BY birthday_month, birthday_day", (guild_id,))
+            for user_id, month, day in cursor.fetchall():
+                birthdays_by_month[month].append({'user_id': user_id, 'day': day})
+        
+        content = ""
+        for month_num in range(1, 13):
+            if birthdays_by_month[month_num]: # Se houver aniversários neste mês
+                month_name = self.PORTUGUESE_MONTH_NAMES[month_num]
+                content += f"**{month_name}:**\n"
+                for bd in sorted(birthdays_by_month[month_num], key=lambda x: x['day']):
+                    user = self.get_user(bd['user_id']) # Tenta pegar o usuário do cache
+                    if user:
+                        content += f"> {bd['day']} - <@{bd['user_id']}>\n"
+                    else:
+                        # Se o usuário não estiver no cache, apenas mostra o ID ou um placeholder
+                        content += f"> {bd['day']} - Usuário desconhecido ({bd['user_id']})\n"
+                content += "\n" # Espaço entre os meses
+        
+        if not content:
+            content = "Nenhum aniversário registrado ainda. Seja o primeiro a registrar o seu!"
+        
+        return content
+
+    async def _update_birthday_message(self, guild_id: int):
+        """Busca o canal e a mensagem de aniversário e a atualiza."""
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT birthday_channel_id, birthday_message_id FROM server_configs WHERE guild_id = ?", (guild_id,))
+            result = cursor.fetchone()
+        
+        if result and result[0] and result[1]:
+            channel_id, message_id = result
+            channel = self.get_channel(channel_id)
+            if channel:
+                try:
+                    message = await channel.fetch_message(message_id)
+                    content = await self._get_birthday_embed_content(guild_id)
+                    
+                    embed = self.create_embed(
+                        title="🎉 Aniversários do Servidor 🎉",
+                        description=content,
+                        color=0xffd700 # Gold color for birthdays
+                    )
+                    
+                    # Adiciona o botão de registro de aniversário
+                    # O autor da view persistente deve ser o bot para que ela funcione após reinícios
+                    view = self.BirthdayRegisterView(author=self.user, guild=self.get_guild(guild_id), bot_instance=self) 
+                    await message.edit(embed=embed, view=view)
+                except discord.NotFound:
+                    print(f"Mensagem de aniversário {message_id} não encontrada no canal {channel_id} do guild {guild_id}.")
+                except discord.Forbidden:
+                    print(f"Sem permissão para editar mensagem de aniversário no canal {channel_id} do guild {guild_id}.")
+                except Exception as e:
+                    print(f"Erro inesperado ao atualizar mensagem de aniversário: {e}")
+            else:
+                print(f"Canal de aniversário {channel_id} não encontrado no guild {guild_id}.")
+        else:
+            print(f"Nenhuma mensagem de aniversário configurada para o guild {guild_id}.")
 
     # --- COMPONENTES DE UI (VIEWS) ---
 
@@ -314,6 +378,358 @@ class RedCommunityBot(commands.Bot):
                 cursor.execute("DELETE FROM perm_roles WHERE guild_id = ?", (self.guild.id,))
                 conn.commit()
             await self.update_message(interaction)
+
+    # --- NOVAS VIEWS E MODALS PARA ANIVERSÁRIOS ---
+
+    class BirthdayRegisterModal(discord.ui.Modal, title="Registrar seu Aniversário"):
+        def __init__(self, bot_instance: 'RedCommunityBot', guild: discord.Guild):
+            super().__init__()
+            self.bot_instance = bot_instance
+            self.guild = guild
+
+        day_input = discord.ui.TextInput(
+            label="Dia do Aniversário (1-31)",
+            placeholder="Ex: 15",
+            min_length=1,
+            max_length=2,
+            required=True
+        )
+        month_input = discord.ui.TextInput(
+            label="Mês do Aniversário (1-12)",
+            placeholder="Ex: 7 (para Julho)",
+            min_length=1,
+            max_length=2,
+            required=True
+        )
+
+        async def on_submit(self, interaction: discord.Interaction):
+            try:
+                day = int(self.day_input.value)
+                month = int(self.month_input.value)
+
+                if not (1 <= day <= 31 and 1 <= month <= 12):
+                    await interaction.response.send_message("Dia ou mês inválido. Por favor, insira valores entre 1-31 para o dia e 1-12 para o mês.", ephemeral=True)
+                    return
+                
+                # Basic check for valid day in month (e.g., no Feb 30)
+                try:
+                    datetime(2000, month, day) # Use a leap year to allow Feb 29
+                except ValueError:
+                    await interaction.response.send_message(f"O dia {day} não é válido para o mês {month}. Por favor, verifique.", ephemeral=True)
+                    return
+
+                with sqlite3.connect(DB_FILE) as conn:
+                    cursor = conn.cursor()
+                    # Verifica se o usuário já tem um aniversário registrado
+                    cursor.execute("SELECT * FROM birthdays WHERE guild_id = ? AND user_id = ?", (self.guild.id, interaction.user.id))
+                    existing_birthday = cursor.fetchone()
+
+                    if existing_birthday:
+                        await interaction.response.send_message("Você já tem um aniversário registrado. Se precisar alterar, entre em contato com um administrador.", ephemeral=True)
+                        return
+
+                    cursor.execute("INSERT INTO birthdays (guild_id, user_id, birthday_month, birthday_day) VALUES (?, ?, ?, ?)",
+                                   (self.guild.id, interaction.user.id, month, day))
+                    conn.commit()
+                
+                # Log da ação
+                log_description = (
+                    f"**Ação:** Aniversário Registrado\n"
+                    f"**Usuário:** {interaction.user.mention}\n"
+                    f"**Data:** `{day}/{month}`"
+                )
+                log_embed = self.bot_instance.create_user_embed(
+                    interaction.user, self.guild, log_description, title="Log: Gerenciamento de Aniversários", color=0x2ecc71
+                )
+                await self.bot_instance.log_to_channel(self.guild, log_embed)
+
+                await interaction.response.send_message("Seu aniversário foi registrado com sucesso! 🎉", ephemeral=True)
+                await self.bot_instance._update_birthday_message(self.guild.id) # Atualiza o embed
+            except ValueError:
+                await interaction.response.send_message("Por favor, insira apenas números para o dia e o mês.", ephemeral=True)
+            except Exception as e:
+                print(f"Erro ao registrar aniversário: {e}")
+                await interaction.response.send_message("Ocorreu um erro ao registrar seu aniversário. Tente novamente mais tarde.", ephemeral=True)
+
+    class BirthdayRegisterView(discord.ui.View):
+        def __init__(self, author: discord.User, guild: discord.Guild = None, bot_instance: 'RedCommunityBot' = None):
+            super().__init__(timeout=None) # Persistente
+            self.guild = guild 
+            self.bot_instance = bot_instance # Pode ser None se a view for carregada de forma persistente
+
+        async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
+            print(f"Erro na BirthdayRegisterView: {error}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("Ocorreu um erro inesperado. Tente novamente mais tarde.", ephemeral=True)
+
+        @discord.ui.button(label="Registrar Aniversário", style=discord.ButtonStyle.primary, emoji="🎂", custom_id="birthday_register_button")
+        async def register_birthday_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            # Para views persistentes, guild e bot_instance podem ser None no __init__
+            # Obtemos a guild e a instância do bot da interação
+            self.guild = interaction.guild
+            if self.bot_instance is None:
+                self.bot_instance = interaction.client # interaction.client é a instância do bot
+            modal = self.bot_instance.BirthdayRegisterModal(self.bot_instance, self.guild)
+            await interaction.response.send_modal(modal)
+
+    # --- ADMIN BIRTHDAY MANAGEMENT VIEWS ---
+
+    class AdminAddBirthdayModal(discord.ui.Modal, title="Adicionar Aniversário (Admin)"):
+        def __init__(self, bot_instance: 'RedCommunityBot', guild: discord.Guild):
+            super().__init__()
+            self.bot_instance = bot_instance
+            self.guild = guild
+
+        user_input = discord.ui.TextInput(
+            label="ID ou Menção do Usuário",
+            placeholder="Ex: 1234567890 ou @Usuário",
+            required=True
+        )
+        day_input = discord.ui.TextInput(
+            label="Dia do Aniversário (1-31)",
+            placeholder="Ex: 15",
+            min_length=1,
+            max_length=2,
+            required=True
+        )
+        month_input = discord.ui.TextInput(
+            label="Mês do Aniversário (1-12)",
+            placeholder="Ex: 7 (para Julho)",
+            min_length=1,
+            max_length=2,
+            required=True
+        )
+
+        async def on_submit(self, interaction: discord.Interaction):
+            try:
+                user_str = self.user_input.value.strip()
+                user_id = None
+                if user_str.isdigit():
+                    user_id = int(user_str)
+                elif user_str.startswith('<@') and user_str.endswith('>'):
+                    user_id = int(user_str.strip('<@!>'))
+                
+                if not user_id:
+                    await interaction.response.send_message("Formato de usuário inválido. Por favor, use o ID ou a menção.", ephemeral=True)
+                    return
+                
+                target_user = self.bot_instance.get_user(user_id)
+                if not target_user:
+                    await interaction.response.send_message(f"Não consegui encontrar o usuário com ID {user_id}.", ephemeral=True)
+                    return
+
+                day = int(self.day_input.value)
+                month = int(self.month_input.value)
+
+                if not (1 <= day <= 31 and 1 <= month <= 12):
+                    await interaction.response.send_message("Dia ou mês inválido. Por favor, insira valores entre 1-31 para o dia e 1-12 para o mês.", ephemeral=True)
+                    return
+                
+                try:
+                    datetime(2000, month, day)
+                except ValueError:
+                    await interaction.response.send_message(f"O dia {day} não é válido para o mês {month}. Por favor, verifique.", ephemeral=True)
+                    return
+
+                with sqlite3.connect(DB_FILE) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT OR REPLACE INTO birthdays (guild_id, user_id, birthday_month, birthday_day) VALUES (?, ?, ?, ?)",
+                                   (self.guild.id, user_id, month, day))
+                    conn.commit()
+                
+                # Log da ação
+                log_description = (
+                    f"**Ação:** Aniversário Adicionado/Alterado (Admin)\n"
+                    f"**Moderador:** {interaction.user.mention}\n"
+                    f"**Alvo:** {target_user.mention}\n"
+                    f"**Nova Data:** `{day}/{month}`"
+                )
+                log_embed = self.bot_instance.create_user_embed(
+                    interaction.user, self.guild, log_description, title="Log: Gerenciamento de Aniversários", color=0x00bfff
+                )
+                await self.bot_instance.log_to_channel(self.guild, log_embed)
+
+                await interaction.response.send_message(f"Aniversário de {target_user.display_name} ({day}/{month}) adicionado/atualizado com sucesso! 🎉", ephemeral=True)
+                await self.bot_instance._update_birthday_message(self.guild.id)
+            except ValueError:
+                await interaction.response.send_message("Por favor, insira apenas números para o dia e o mês.", ephemeral=True)
+            except Exception as e:
+                print(f"Erro ao adicionar aniversário (Admin): {e}")
+                await interaction.response.send_message("Ocorreu um erro ao adicionar o aniversário. Tente novamente mais tarde.", ephemeral=True)
+
+    class AdminChangeBirthdayModal(discord.ui.Modal, title="Alterar Aniversário (Admin)"):
+        def __init__(self, bot_instance: 'RedCommunityBot', guild: discord.Guild, user_id: int, current_day: int, current_month: int):
+            super().__init__()
+            self.bot_instance = bot_instance
+            self.guild = guild
+            self.user_id = user_id
+
+            self.day_input = discord.ui.TextInput(
+                label="Novo Dia do Aniversário (1-31)",
+                placeholder=f"Dia atual: {current_day}",
+                min_length=1,
+                max_length=2,
+                default=str(current_day),
+                required=True
+            )
+            self.month_input = discord.ui.TextInput(
+                label="Novo Mês do Aniversário (1-12)",
+                placeholder=f"Mês atual: {current_month}",
+                min_length=1,
+                max_length=2,
+                default=str(current_month),
+                required=True
+            )
+            self.add_item(self.day_input)
+            self.add_item(self.month_input)
+
+        async def on_submit(self, interaction: discord.Interaction):
+            try:
+                day = int(self.day_input.value)
+                month = int(self.month_input.value)
+
+                if not (1 <= day <= 31 and 1 <= month <= 12):
+                    await interaction.response.send_message("Dia ou mês inválido. Por favor, insira valores entre 1-31 para o dia e 1-12 para o mês.", ephemeral=True)
+                    return
+                
+                try:
+                    datetime(2000, month, day)
+                except ValueError:
+                    await interaction.response.send_message(f"O dia {day} não é válido para o mês {month}. Por favor, verifique.", ephemeral=True)
+                    return
+
+                with sqlite3.connect(DB_FILE) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE birthdays SET birthday_month = ?, birthday_day = ? WHERE guild_id = ? AND user_id = ?",
+                                   (month, day, self.guild.id, self.user_id))
+                    conn.commit()
+                
+                # Log da ação
+                target_user = self.bot_instance.get_user(self.user_id)
+                log_description = (
+                    f"**Ação:** Aniversário Alterado (Admin)\n"
+                    f"**Moderador:** {interaction.user.mention}\n"
+                    f"**Alvo:** {target_user.mention if target_user else f'ID: {self.user_id}'}\n"
+                    f"**Nova Data:** `{day}/{month}`"
+                )
+                log_embed = self.bot_instance.create_user_embed(
+                    interaction.user, self.guild, log_description, title="Log: Gerenciamento de Aniversários", color=0xf1c40f
+                )
+                await self.bot_instance.log_to_channel(self.guild, log_embed)
+
+                target_user = self.bot_instance.get_user(self.user_id)
+                user_name = target_user.display_name if target_user else f"Usuário {self.user_id}"
+                await interaction.response.send_message(f"Aniversário de {user_name} alterado para {day}/{month} com sucesso! 🎉", ephemeral=True)
+                await self.bot_instance._update_birthday_message(self.guild.id)
+            except ValueError:
+                await interaction.response.send_message("Por favor, insira apenas números para o dia e o mês.", ephemeral=True)
+            except Exception as e:
+                print(f"Erro ao alterar aniversário (Admin): {e}")
+                await interaction.response.send_message("Ocorreu um erro ao alterar o aniversário. Tente novamente mais tarde.", ephemeral=True)
+
+
+    class AdminBirthdayManagementView(BaseView):
+        def __init__(self, author: discord.User, guild: discord.Guild = None, bot_instance: 'RedCommunityBot' = None):
+            super().__init__(author=author, timeout=900.0)
+            self.guild = guild
+            self.bot_instance = bot_instance
+
+        async def interaction_check(self, interaction: discord.Interaction) -> bool:
+            # Para views persistentes, guild e bot_instance podem ser None no __init__
+            if self.guild is None: self.guild = interaction.guild
+            if self.bot_instance is None: self.bot_instance = interaction.client
+            return await super().interaction_check(interaction)
+
+        @discord.ui.button(label="Adicionar Aniversário", style=discord.ButtonStyle.success, emoji="➕")
+        async def add_birthday(self, interaction: discord.Interaction, button: discord.ui.Button):
+            modal = self.bot_instance.AdminAddBirthdayModal(self.bot_instance, self.guild)
+            await interaction.response.send_modal(modal)
+
+        @discord.ui.button(label="Remover Aniversário", style=discord.ButtonStyle.danger, emoji="➖")
+        async def remove_birthday(self, interaction: discord.Interaction, button: discord.ui.Button):
+            with sqlite3.connect(DB_FILE) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT user_id, birthday_month, birthday_day FROM birthdays WHERE guild_id = ? ORDER BY birthday_month, birthday_day", (self.guild.id,))
+                birthdays_data = cursor.fetchall()
+            
+            if not birthdays_data:
+                await interaction.response.send_message("Não há aniversários registrados para remover.", ephemeral=True)
+                return
+            
+            options = []
+            for user_id, month, day in birthdays_data:
+                user = self.bot_instance.get_user(user_id)
+                user_name = user.display_name if user else f"Usuário {user_id}"
+                options.append(discord.SelectOption(label=f"{user_name} ({day}/{month})", value=str(user_id)))
+            
+            select = discord.ui.Select(placeholder="Selecione o usuário para remover o aniversário...", min_values=1, max_values=len(options), options=options)
+
+            async def select_callback(select_interaction: discord.Interaction):
+                with sqlite3.connect(DB_FILE) as conn:
+                    cursor = conn.cursor()
+                    for user_id_str in select.values:
+                        user_id = int(user_id_str)
+                        cursor.execute("DELETE FROM birthdays WHERE guild_id = ? AND user_id = ?", (self.guild.id, user_id))
+                        
+                        # Log da ação para cada usuário removido
+                        target_user = self.bot_instance.get_user(user_id)
+                        log_description = (
+                            f"**Ação:** Aniversário Removido (Admin)\n"
+                            f"**Moderador:** {select_interaction.user.mention}\n"
+                            f"**Alvo:** {target_user.mention if target_user else f'ID: {user_id}'}"
+                        )
+                        log_embed = self.bot_instance.create_user_embed(
+                            select_interaction.user, self.guild, log_description, title="Log: Gerenciamento de Aniversários", color=0xe74c3c
+                        )
+                        await self.bot_instance.log_to_channel(self.guild, log_embed)
+
+                    conn.commit()
+
+                await select_interaction.response.send_message("Aniversário(s) removido(s) com sucesso!", ephemeral=True)
+                await self.bot_instance._update_birthday_message(self.guild.id)
+                # Remove o select da view e atualiza a mensagem
+                self.remove_item(select)
+                await select_interaction.message.edit(view=self) # Edita a mensagem original do painel admin
+            
+            select.callback = select_callback
+            self.add_item(select)
+            await interaction.response.edit_message(view=self) # Atualiza a view para mostrar o select
+
+        @discord.ui.button(label="Alterar Aniversário", style=discord.ButtonStyle.secondary, emoji="✏️")
+        async def change_birthday(self, interaction: discord.Interaction, button: discord.ui.Button):
+            with sqlite3.connect(DB_FILE) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT user_id, birthday_month, birthday_day FROM birthdays WHERE guild_id = ? ORDER BY birthday_month, birthday_day", (self.guild.id,))
+                birthdays_data = cursor.fetchall()
+            
+            if not birthdays_data:
+                await interaction.response.send_message("Não há aniversários registrados para alterar.", ephemeral=True)
+                return
+            
+            options = []
+            for user_id, month, day in birthdays_data:
+                user = self.bot_instance.get_user(user_id)
+                user_name = user.display_name if user else f"Usuário {user_id}"
+                options.append(discord.SelectOption(label=f"{user_name} ({day}/{month})", value=f"{user_id},{day},{month}")) # Value: user_id,day,month
+            
+            select = discord.ui.Select(placeholder="Selecione o usuário para alterar o aniversário...", min_values=1, max_values=1, options=options)
+
+            async def select_callback(select_interaction: discord.Interaction):
+                selected_value = select.values[0]
+                user_id_str, day_str, month_str = selected_value.split(',')
+                user_id = int(user_id_str)
+                current_day = int(day_str)
+                current_month = int(month_str)
+
+                modal = self.bot_instance.AdminChangeBirthdayModal(self.bot_instance, self.guild, user_id, current_day, current_month)
+                await select_interaction.response.send_modal(modal)
+                # Remove o select da view e atualiza a mensagem
+                self.remove_item(select)
+                await select_interaction.message.edit(view=self) # Edita a mensagem original do painel admin
+            
+            select.callback = select_callback
+            self.add_item(select)
+            await interaction.response.edit_message(view=self) # Atualiza a view para mostrar o select
 
     class DmLogView(BaseView):
         """View para os logs de DM, com botões para ver listas de sucesso e falha."""

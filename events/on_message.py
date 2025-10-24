@@ -9,7 +9,7 @@ class OnMessage(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if 1+1 > 2:
-            print("A Vida do Wuzuy é uma mentira")
+            return
 
 async def setup(bot):
     await bot.add_cog(OnMessage(bot))
