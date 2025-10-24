@@ -98,6 +98,7 @@ class RedCommunityBot(commands.Bot):
         return embed
 
     # --- NOVAS FUNÇÕES PARA ANIVERSÁRIOS ---
+
     async def _get_birthday_embed_content(self, guild_id: int) -> str:
         """Gera o conteúdo formatado para o embed de aniversários."""
         birthdays_by_month = {i: [] for i in range(1, 13)} # 1=Jan, 12=Dec
@@ -112,15 +113,13 @@ class RedCommunityBot(commands.Bot):
         for month_num in range(1, 13):
             if birthdays_by_month[month_num]: # Se houver aniversários neste mês
                 month_name = self.PORTUGUESE_MONTH_NAMES[month_num]
-                content += f"**{month_name}:**\n"
+                # Cabeçalho do mês no formato solicitado: __MÊS__
+                content += f"__{month_name}__\n\n"
                 for bd in sorted(birthdays_by_month[month_num], key=lambda x: x['day']):
-                    user = self.get_user(bd['user_id']) # Tenta pegar o usuário do cache
-                    if user:
-                        content += f"> {bd['day']} - <@{bd['user_id']}>\n"
-                    else:
-                        # Se o usuário não estiver no cache, apenas mostra o ID ou um placeholder
-                        content += f"> {bd['day']} - Usuário desconhecido ({bd['user_id']})\n"
-                content += "\n" # Espaço entre os meses
+                    # Formata a data como `DD/MM` com zeros à esquerda e mostra a menção em negrito
+                    day = int(bd['day'])
+                    content += f"> :RED_T1_SETA: `{day:02d}/{month_num:02d}` - **<@{bd['user_id']}>**\n"
+                content += "\n"  # Espaço entre os meses
         
         if not content:
             content = "Nenhum aniversário registrado ainda. Seja o primeiro a registrar o seu!"
@@ -143,7 +142,7 @@ class RedCommunityBot(commands.Bot):
                     content = await self._get_birthday_embed_content(guild_id)
                     
                     embed = self.create_embed(
-                        title="🎉 Aniversários do Servidor 🎉",
+                        title="Aniversários do Servidor <:firework:1431409168501182647>",
                         description=content,
                         color=0xffd700 # Gold color for birthdays
                     )

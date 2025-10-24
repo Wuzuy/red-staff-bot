@@ -26,7 +26,7 @@ class Birthday(commands.Cog):
         
         content = await self.client._get_birthday_embed_content(ctx.guild.id)
         embed = self.client.create_embed(
-            title="🎉 Aniversários do Servidor 🎉",
+            title="Aniversários do Servidor <:firework:1431409168501182647>",
             description=content,
             color=0xffd700 # Gold color for birthdays
         )
