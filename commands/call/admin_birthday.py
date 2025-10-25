@@ -14,7 +14,7 @@ class Admin(commands.Cog):
         await self.client.delete_message_user(ctx)
 
         embed = self.client.create_user_embed(ctx.author, ctx.guild, "Selecione uma opção para gerenciar.\n\n> **Aniversários:** Adicione, remova ou altere aniversários no servidor.", title="Painel de Administração")
-        view = self.client.AdminBirthdayManagementView(author=ctx.author, guild=ctx.guild, bot_instance=self.client)
+        view = self.client.AdminBirthdayManagementView(author=ctx.author, bot_instance=self.client, guild=ctx.guild)
         await ctx.send(embed=embed, view=view, delete_after=900) # Apaga após 15 minutos
 
     @admin.error

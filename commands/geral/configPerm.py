@@ -15,7 +15,7 @@ class ConfigPerm(commands.Cog):
         """Abre um painel para configurar os cargos de admin do bot."""
         await self.client.delete_message_user(ctx)
 
-        view = self.client.ConfigPermView(author=ctx.author, guild=ctx.guild)
+        view = self.client.ConfigPermView(author=ctx.author, bot_instance=self.client, guild=ctx.guild)
         initial_embed = await view.generate_embed()
         await ctx.send(embed=initial_embed, view=view, delete_after=900) # Apaga após 15 minutos
 

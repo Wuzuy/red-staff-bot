@@ -13,7 +13,7 @@ class DMCargos(commands.Cog):
         await self.client.delete_message_user(ctx)
 
         # Instancia a view do core.py
-        view = self.client.DmConfigView(author=ctx.author, guild=ctx.guild)
+        view = self.client.DmConfigView(author=ctx.author, bot_instance=self.client, guild=ctx.guild)
         
         # Gera o embed inicial e envia a mensagem
         initial_embed = await view.generate_embed()

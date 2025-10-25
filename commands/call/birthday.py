@@ -30,7 +30,7 @@ class Birthday(commands.Cog):
             description=content,
             color=0xffd700 # Gold color for birthdays
         )
-        view = self.client.BirthdayRegisterView(author=self.client.user, guild=ctx.guild, bot_instance=self.client) # Bot é o autor da view persistente
+        view = self.client.BirthdayRegisterView()
 
         if result and result[0] == ctx.channel.id and result[1]:
             # Mensagem já existe no canal atual, tenta editar
