@@ -19,7 +19,7 @@ class RedCommunityBot(commands.Bot):
         intents.message_content = True
         intents.members = True
         
-        super().__init__(command_prefix="r.", intents=intents)
+        super().__init__(command_prefix="r.", intents=intents, help_command=None)
         
         self.super_admin_ids = config.SUPER_ADMIN_IDS
 
