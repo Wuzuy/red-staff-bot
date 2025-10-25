@@ -40,10 +40,12 @@ def is_call_server():
     """Verifica se o comando foi usado em um servidor de 'call'."""
     async def predicate(ctx: commands.Context) -> bool:
         return ctx.guild.id in config.CALL_SERVERS_IDS
+    predicate.is_sector_check = True # Atributo para identificação
     return commands.check(predicate)
 
 def is_chat_server():
     """Verifica se o comando foi usado em um servidor de 'chat'."""
     async def predicate(ctx: commands.Context) -> bool:
         return ctx.guild.id in config.CHAT_SERVERS_IDS
+    predicate.is_sector_check = True # Atributo para identificação
     return commands.check(predicate)

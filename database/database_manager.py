@@ -17,13 +17,20 @@ def initialize_database():
         
         # Tabela de configurações de log por servidor
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS server_configs (
-            guild_id INTEGER PRIMARY KEY, 
-            log_channel_id INTEGER,
-            birthday_channel_id INTEGER,
-            birthday_message_id INTEGER
-        )
+            CREATE TABLE IF NOT EXISTS server_configs (
+                guild_id INTEGER PRIMARY KEY, 
+                log_channel_id INTEGER
+            )
         """)
+
+        # Adiciona colunas à tabela server_configs se não existirem (forma segura)
+        try:
+            cursor.execute("ALTER TABLE server_configs ADD COLUMN birthday_channel_id INTEGER;")
+        except sqlite3.OperationalError: pass # Ignora se a coluna já existe
+        try:
+            cursor.execute("ALTER TABLE server_configs ADD COLUMN birthday_message_id INTEGER;")
+        except sqlite3.OperationalError: pass # Ignora se a coluna já existe
+
         
         # Tabela de cargos com permissão de admin por servidor
         cursor.execute("""
@@ -52,6 +59,29 @@ def initialize_database():
             birthday_day INTEGER,
             PRIMARY KEY (guild_id, user_id)
         )
+        """)
+
+        # Tabela para agendamento de DMs por servidor
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS scheduled_dms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                message TEXT NOT NULL,
+                send_time TEXT NOT NULL, -- Formato HH:MM
+                days_of_week TEXT NOT NULL, -- "0,1,2,3,4,5,6" (Seg-Dom)
+                created_by INTEGER NOT NULL
+            )
+        """)
+
+        # Tabela para agendamento de DMs globais
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS scheduled_dmall (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message TEXT NOT NULL,
+                send_time TEXT NOT NULL, -- Formato HH:MM
+                days_of_week TEXT NOT NULL, -- "0,1,2,3,4,5,6" (Seg-Dom)
+                created_by INTEGER NOT NULL
+            )
         """)
         
         conn.commit()

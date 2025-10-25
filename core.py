@@ -1,9 +1,11 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import os
 import io
-from datetime import datetime, timezone
+from datetime import datetime
+import pytz # Para lidar com fuso horário
 import sqlite3
+import asyncio
 
 import config
 from database.database_manager import initialize_database, DB_FILE
@@ -36,6 +38,9 @@ class RedCommunityBot(commands.Bot):
             9: "SETEMBRO", 10: "OUTUBRO", 11: "NOVEMBRO", 12: "DEZEMBRO"
         }
         
+        # Fuso horário de Brasília
+        self.brasilia_tz = pytz.timezone('America/Sao_Paulo')
+
         # Anexa as classes de UI à instância do bot para fácil acesso
         self.BaseView = BaseView 
         self.BirthdayRegisterModal = birthday_views.BirthdayRegisterModal
@@ -69,12 +74,15 @@ class RedCommunityBot(commands.Bot):
 
         # Adiciona as views persistentes para que funcionem após o reinício do bot
         self.add_view(self.BirthdayRegisterView())
+        
+        # Inicia a tarefa de verificação de DMs agendadas
+        self.check_scheduled_dms.start()
 
     async def on_ready(self):
         """Evento executado quando o bot está online e pronto."""
         print(f'Bot conectado como {self.user}')
         initialize_database()
-
+    
     # --- FUNÇÕES UTILITÁRIAS (MÉTODOS ESTÁTICOS) ---
     
     @staticmethod
@@ -84,7 +92,7 @@ class RedCommunityBot(commands.Bot):
             title=title,
             description=description,
             color=color,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(pytz.utc)
         )
         return embed
 
@@ -106,7 +114,7 @@ class RedCommunityBot(commands.Bot):
             title=title,
             description=description,
             color=color,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(pytz.utc)
         )
         embed.set_author(name=f"{guild.name} - {author.display_name}", icon_url=author.display_avatar.url)
         return embed
@@ -175,6 +183,117 @@ class RedCommunityBot(commands.Bot):
                     print(f"Erro inesperado ao atualizar mensagem de aniversário: {e}")
             else:
                 print(f"Canal de aniversário {channel_id} não encontrado no guild {guild_id}.")
+
+    # --- LÓGICA DE ENVIO DE DMS (REATORADO) ---
+
+    async def execute_dm_send(self, guild: discord.Guild, message: str, author: discord.User = None):
+        """Executa o envio de DMs para membros de um servidor específico."""
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT role_id FROM dm_roles WHERE guild_id = ?", (guild.id,))
+            allowed_role_ids = {row[0] for row in cursor.fetchall()}
+
+        members_to_dm = []
+        if not allowed_role_ids:
+            members_to_dm = [m for m in guild.members if not m.bot]
+        else:
+            for member in guild.members:
+                if not member.bot and any(role.id in allowed_role_ids for role in member.roles):
+                    members_to_dm.append(member)
+
+        successful_members, failed_members = await self._send_dms_to_list(members_to_dm, message)
+
+        # Log
+        log_embed = self.create_embed("Log: Envio de DM em Massa", "", 0xffa500)
+        if author:
+            log_embed.add_field(name="Autor", value=author.mention, inline=False)
+        else: # Agendado
+            log_embed.add_field(name="Tipo", value="Agendado", inline=False)
+        log_embed.add_field(name="Alcançados", value=f"`{len(successful_members)}`", inline=True)
+        log_embed.add_field(name="Falhas", value=f"`{len(failed_members)}`", inline=True)
+        log_embed.add_field(name="Mensagem", value=f"```\n{message}\n```", inline=False)
+
+        log_view = self.DmLogView(
+            author=author or self.user, successful_members=successful_members, failed_members=failed_members
+        )
+        await self.log_to_channel(guild, log_embed, view=log_view)
+
+    async def execute_dmall_send(self, message: str, author: discord.User = None):
+        """Executa o envio de DMs para todos os membros únicos do bot."""
+        unique_members = {m for guild in self.guilds for m in guild.members if not m.bot}
+        
+        successful_members, failed_members = await self._send_dms_to_list(list(unique_members), message)
+
+        # Log
+        log_embed = self.create_embed("Log: Envio de DM Global", "", 0xffa500)
+        if author:
+            log_embed.add_field(name="Autor", value=author.mention, inline=False)
+        else: # Agendado
+            log_embed.add_field(name="Tipo", value="Agendado", inline=False)
+        log_embed.add_field(name="Alcançados", value=f"`{len(successful_members)}`", inline=True)
+        log_embed.add_field(name="Falhas", value=f"`{len(failed_members)}`", inline=True)
+        log_embed.add_field(name="Mensagem", value=f"```\n{message}\n```", inline=False)
+
+        log_view = self.DmLogView(
+            author=author or self.user, successful_members=successful_members, failed_members=failed_members
+        )
+        for guild in self.guilds:
+            await self.log_to_channel(guild, log_embed, view=log_view)
+
+    async def _send_dms_to_list(self, members: list, message: str) -> tuple[list, list]:
+        """Função auxiliar para enviar DMs para uma lista de membros."""
+        successful = []
+        failed = []
+        message_dm = f"# <:red1:1431082037900738620><:red2:1431082036147523725>\n\n{message}"
+        
+        for member in members:
+            try:
+                await member.send(message_dm)
+                successful.append(member)
+            except (discord.Forbidden, discord.HTTPException):
+                failed.append(member)
+            await asyncio.sleep(3.0) # Rate limit
+        return successful, failed
+
+    # --- TAREFA DE AGENDAMENTO ---
+
+    @tasks.loop(minutes=1)
+    async def check_scheduled_dms(self):
+        """Verifica e envia DMs agendadas a cada minuto."""
+        now_brt = datetime.now(self.brasilia_tz)
+        current_time = now_brt.strftime("%H:%M")
+        current_day = str(now_brt.isoweekday()) # 1=Segunda, 7=Domingo
+
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Verifica DMs por servidor
+            cursor.execute("SELECT guild_id, message FROM scheduled_dms WHERE send_time = ?", (current_time,))
+            for guild_id, message in cursor.fetchall():
+                # Precisamos buscar os dias da semana separadamente
+                day_cursor = conn.cursor()
+                day_cursor.execute("SELECT days_of_week FROM scheduled_dms WHERE guild_id = ? AND message = ? AND send_time = ?", (guild_id, message, current_time))
+                days_str = day_cursor.fetchone()[0]
+                if current_day in days_str.split(','):
+                    guild = self.get_guild(guild_id)
+                    if guild:
+                        print(f"Enviando DM agendada para o servidor: {guild.name}")
+                        asyncio.create_task(self.execute_dm_send(guild, message))
+
+            # Verifica DMs globais
+            cursor.execute("SELECT message FROM scheduled_dmall WHERE send_time = ?", (current_time,))
+            for (message,) in cursor.fetchall():
+                day_cursor = conn.cursor()
+                day_cursor.execute("SELECT days_of_week FROM scheduled_dmall WHERE message = ? AND send_time = ?", (message, current_time))
+                days_str = day_cursor.fetchone()[0]
+                if current_day in days_str.split(','):
+                    print("Enviando DMALL agendada global.")
+                    asyncio.create_task(self.execute_dmall_send(message))
+
+    @check_scheduled_dms.before_loop
+    async def before_check_scheduled_dms(self):
+        """Espera o bot estar pronto antes de iniciar o loop."""
+        await self.wait_until_ready()
 
 
     # --- MÉTODO PARA LOGS ---
