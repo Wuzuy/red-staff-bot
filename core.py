@@ -113,8 +113,8 @@ class RedCommunityBot(commands.Bot):
 
     # --- NOVAS FUNÇÕES PARA ANIVERSÁRIOS ---
 
-    async def _get_birthday_embed_content(self, guild_id: int) -> str:
-        """Gera o conteúdo formatado para o embed de aniversários."""
+    async def _get_birthday_embed_fields(self, guild_id: int) -> list[dict]:
+        """Gera os campos formatados para o embed de aniversários."""
         birthdays_by_month = {i: [] for i in range(1, 13)} # 1=Jan, 12=Dec
 
         with sqlite3.connect(DB_FILE) as conn:
@@ -122,25 +122,22 @@ class RedCommunityBot(commands.Bot):
             cursor.execute("SELECT user_id, birthday_month, birthday_day FROM birthdays WHERE guild_id = ? ORDER BY birthday_month, birthday_day", (guild_id,))
             for user_id, month, day in cursor.fetchall():
                 birthdays_by_month[month].append({'user_id': user_id, 'day': day})
-        
-        content = ""
+
+        fields = []
         for month_num in range(1, 13):
             if birthdays_by_month[month_num]: # Se houver aniversários neste mês
                 month_name = self.PORTUGUESE_MONTH_NAMES[month_num]
-                content += f"**__{month_name}__**\n"
+                value = ""
                 for bd in sorted(birthdays_by_month[month_num], key=lambda x: x['day']):
                     user = self.get_user(bd['user_id']) # Tenta pegar o usuário do cache
                     if user:
-                        content += f"> <a:seta:EMOJI_SETA> `{bd['day']}` - <@{bd['user_id']}>\n"
+                        value += f"<a:seta:EMOJI_SETA> `{bd['day']}` - <@{bd['user_id']}>\n"
                     else:
                         # Se o usuário não estiver no cache, apenas mostra o ID ou um placeholder
-                        content += f"> <a:seta:EMOJI_SETA> `{bd['day']}` - Usuário desconhecido ({bd['user_id']})\n"
-                content += "\n\n"  # Espaço entre os meses
-        
-        if not content:
-            content = "Nenhum aniversário registrado ainda. Seja o primeiro a registrar o seu!"
-        
-        return content
+                        value += f"<a:seta:EMOJI_SETA> `{bd['day']}` - Usuário desconhecido ({bd['user_id']})\n"
+                fields.append({"name": f"**__{month_name}__**", "value": value, "inline": False})
+
+        return fields
 
     async def _update_birthday_message(self, guild_id: int):
         """Busca o canal e a mensagem de aniversário e a atualiza."""
@@ -148,21 +145,24 @@ class RedCommunityBot(commands.Bot):
             cursor = conn.cursor()
             cursor.execute("SELECT birthday_channel_id, birthday_message_id FROM server_configs WHERE guild_id = ?", (guild_id,))
             result = cursor.fetchone()
-        
+
         if result and result[0] and result[1]:
             channel_id, message_id = result
             channel = self.get_channel(channel_id)
             if channel:
                 try:
                     message = await channel.fetch_message(message_id)
-                    content = await self._get_birthday_embed_content(guild_id)
-                    
-                    embed = self.create_embed(
-                        title="Aniversários do Servidor <:firework:1431409168501182647>",
-                        description=content,
-                        color=0xffd700 # Gold color for birthdays
-                    )
-                    
+                    fields = await self._get_birthday_embed_fields(guild_id)
+
+                    embed = discord.Embed(title="Aniversários Mov. Call", color=2326507)
+                    embed.set_footer(text="Red Mov Call")
+
+                    if fields:
+                        for field in fields:
+                            embed.add_field(name=field["name"], value=field["value"], inline=field["inline"])
+                    else:
+                        embed.description = "Nenhum aniversário registrado ainda. Seja o primeiro a registrar o seu!"
+
                     # Adiciona o botão de registro de aniversário
                     # O autor da view persistente deve ser o bot para que ela funcione após reinícios
                     view = self.BirthdayRegisterView() 

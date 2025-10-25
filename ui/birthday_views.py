@@ -232,7 +232,7 @@ class AdminChangeBirthdayModal(discord.ui.Modal, title="Alterar Aniversário (Ad
 
 class BirthdayRegisterView(discord.ui.View):
     def __init__(self, *, timeout=None):
-        super().__init__(timeout=timeout) # Persistente
+        super().__init__(timeout=timeout)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
         print(f"Erro na BirthdayRegisterView: {error}")

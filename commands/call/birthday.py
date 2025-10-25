@@ -24,12 +24,17 @@ class Birthday(commands.Cog):
             cursor.execute("SELECT birthday_channel_id, birthday_message_id FROM server_configs WHERE guild_id = ?", (ctx.guild.id,))
             result = cursor.fetchone()
         
-        content = await self.client._get_birthday_embed_content(ctx.guild.id)
-        embed = self.client.create_embed(
-            title="Aniversários do Servidor <:firework:1431409168501182647>",
-            description=content,
-            color=0xffd700 # Gold color for birthdays
-        )
+        fields = await self.client._get_birthday_embed_fields(ctx.guild.id)
+        
+        embed = discord.Embed(title="Aniversários Mov. Call", color=2326507)
+        embed.set_footer(text="Red Mov Call")
+
+        if fields:
+            for field in fields:
+                embed.add_field(name=field["name"], value=field["value"], inline=field["inline"])
+        else:
+            embed.description = "Nenhum aniversário registrado ainda. Seja o primeiro a registrar o seu!"
+
         view = self.client.BirthdayRegisterView()
 
         if result and result[0] == ctx.channel.id and result[1]:
