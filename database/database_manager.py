@@ -19,17 +19,39 @@ def initialize_database():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS server_configs (
                 guild_id INTEGER PRIMARY KEY, 
-                log_channel_id INTEGER
+                log_bot_channel_id INTEGER,
+                log_channel_channel_id INTEGER,
+                log_message_channel_id INTEGER,
+                log_role_channel_id INTEGER,
+                log_join_channel_id INTEGER,
+                log_leave_channel_id INTEGER
             )
         """)
 
         # Adiciona colunas à tabela server_configs se não existirem (forma segura)
+        # Renomeia a coluna antiga se ela existir para manter a compatibilidade
+        try:
+            cursor.execute("ALTER TABLE server_configs RENAME COLUMN log_channel_id TO log_bot_channel_id;")
+        except sqlite3.OperationalError: pass # Ignora se a coluna já foi renomeada ou não existe
+
         try:
             cursor.execute("ALTER TABLE server_configs ADD COLUMN birthday_channel_id INTEGER;")
         except sqlite3.OperationalError: pass # Ignora se a coluna já existe
         try:
             cursor.execute("ALTER TABLE server_configs ADD COLUMN birthday_message_id INTEGER;")
         except sqlite3.OperationalError: pass # Ignora se a coluna já existe
+        
+        # Adiciona as novas colunas de log
+        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_channel_channel_id INTEGER;")
+        except sqlite3.OperationalError: pass
+        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_message_channel_id INTEGER;")
+        except sqlite3.OperationalError: pass
+        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_role_channel_id INTEGER;")
+        except sqlite3.OperationalError: pass
+        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_join_channel_id INTEGER;")
+        except sqlite3.OperationalError: pass
+        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_leave_channel_id INTEGER;")
+        except sqlite3.OperationalError: pass
 
         
         # Tabela de cargos com permissão de admin por servidor

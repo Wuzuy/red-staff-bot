@@ -7,7 +7,6 @@ import pytz # Para lidar com fuso horário
 import sqlite3
 import asyncio
 
-import config
 from database.database_manager import initialize_database, DB_FILE
 
 # Importa as novas classes de UI
@@ -23,9 +22,8 @@ class RedCommunityBot(commands.Bot):
         
         super().__init__(command_prefix="r.", intents=intents, help_command=None)
         
-        self.super_admin_ids = config.SUPER_ADMIN_IDS
+        self.super_admin_ids = [SUPER_ADMIN_ID, SUPER_ADMIN_ID_2, DEVELOPER_ID]
 
-        # Cooldown
         self.global_cooldown = commands.CooldownMapping.from_cooldown(
             rate=1,
             per=3.0,
@@ -38,10 +36,8 @@ class RedCommunityBot(commands.Bot):
             9: "SETEMBRO", 10: "OUTUBRO", 11: "NOVEMBRO", 12: "DEZEMBRO"
         }
         
-        # Fuso horário de Brasília
         self.brasilia_tz = pytz.timezone('America/Sao_Paulo')
 
-        # Anexa as classes de UI à instância do bot para fácil acesso
         self.BaseView = BaseView 
         self.BirthdayRegisterModal = birthday_views.BirthdayRegisterModal
         self.BirthdayRegisterView = birthday_views.BirthdayRegisterView
@@ -52,8 +48,6 @@ class RedCommunityBot(commands.Bot):
         self.ConfigPermView = management_views.ConfigPermView
         self.DmLogView = log_views.DmLogView
 
-
-    # --- MÉTODO DE SETUP E EVENTOS ---
 
     async def setup_hook(self):
         """Encontra e carrega todas as extensões (cogs) automaticamente."""
@@ -72,18 +66,47 @@ class RedCommunityBot(commands.Bot):
                         except Exception as e:
                             print(f"Falha ao carregar o cog {module_path}: {e}")
 
-        # Adiciona as views persistentes para que funcionem após o reinício do bot
         self.add_view(self.BirthdayRegisterView())
         
-        # Inicia a tarefa de verificação de DMs agendadas
         self.check_scheduled_dms.start()
+
+    async def before_invoke(self, ctx: commands.Context):
+        """Hook executado antes de cada comando para aplicar o cooldown global."""
+        if ctx.author.id in self.super_admin_ids:
+            return  # Super admins ignoram o cooldown
+
+        bucket = self.global_cooldown.get_bucket(ctx.message)
+        retry_after = bucket.update_rate_limit()
+        if retry_after:
+            raise commands.CommandOnCooldown(bucket, retry_after, commands.BucketType.user)
+
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
+        """Lida com erros de comando, dando prioridade ao cooldown."""
+        original_error = getattr(error, 'original', error)
+
+        if isinstance(original_error, commands.CommandOnCooldown):
+            tempo_restante = round(error.retry_after, 1)
+            # Envia uma mensagem de aviso e a apaga após 5 segundos
+            await ctx.send(f"Você está em cooldown! Tente novamente em `{tempo_restante}s`.", delete_after=5)
+            # Apaga a mensagem do comando que causou o erro
+            await self.delete_message_user(ctx)
+            return # Impede que outros manipuladores de erro sejam acionados
+
+        if not isinstance(error, commands.CommandOnCooldown):
+            print(f"Ocorreu um erro não tratado ao executar o comando '{ctx.command}': {error}")
 
     async def on_ready(self):
         """Evento executado quando o bot está online e pronto."""
         print(f'Bot conectado como {self.user}')
         initialize_database()
-    
-    # --- FUNÇÕES UTILITÁRIAS (MÉTODOS ESTÁTICOS) ---
+
+    async def on_message(self, message: discord.Message):
+        """Processa mensagens para comandos."""
+        if message.author.bot:
+            return
+        
+        # Garante que os comandos sejam processados pela biblioteca
+        await self.process_commands(message)
     
     @staticmethod
     def create_embed(title, description, color=0xff0000):
@@ -119,8 +142,6 @@ class RedCommunityBot(commands.Bot):
         embed.set_author(name=f"{guild.name} - {author.display_name}", icon_url=author.display_avatar.url)
         return embed
 
-    # --- NOVAS FUNÇÕES PARA ANIVERSÁRIOS ---
-
     async def _get_birthday_embed_fields(self, guild_id: int) -> list[dict]:
         """Gera os campos formatados para o embed de aniversários."""
         birthdays_by_month = {i: [] for i in range(1, 13)} # 1=Jan, 12=Dec
@@ -140,9 +161,6 @@ class RedCommunityBot(commands.Bot):
                     user = self.get_user(bd['user_id']) # Tenta pegar o usuário do cache
                     if user:
                         value += f"<a:seta:EMOJI_SETA> `{bd['day']}` - <@{bd['user_id']}>\n"
-                    else:
-                        # Se o usuário não estiver no cache, apenas mostra o ID ou um placeholder
-                        value += f"<a:seta:EMOJI_SETA> `{bd['day']}` - Usuário desconhecido ({bd['user_id']})\n"
                 fields.append({"name": f"**__{month_name}__**", "value": value, "inline": False})
 
         return fields
@@ -171,8 +189,6 @@ class RedCommunityBot(commands.Bot):
                     else:
                         embed.description = "Nenhum aniversário registrado ainda. Seja o primeiro a registrar o seu!"
 
-                    # Adiciona o botão de registro de aniversário
-                    # O autor da view persistente deve ser o bot para que ela funcione após reinícios
                     view = self.BirthdayRegisterView() 
                     await message.edit(embed=embed, view=view)
                 except discord.NotFound:
@@ -183,8 +199,6 @@ class RedCommunityBot(commands.Bot):
                     print(f"Erro inesperado ao atualizar mensagem de aniversário: {e}")
             else:
                 print(f"Canal de aniversário {channel_id} não encontrado no guild {guild_id}.")
-
-    # --- LÓGICA DE ENVIO DE DMS (REATORADO) ---
 
     async def execute_dm_send(self, guild: discord.Guild, message: str, author: discord.User = None):
         """Executa o envio de DMs para membros de um servidor específico."""
@@ -203,7 +217,6 @@ class RedCommunityBot(commands.Bot):
 
         successful_members, failed_members = await self._send_dms_to_list(members_to_dm, message)
 
-        # Log
         log_embed = self.create_embed("Log: Envio de DM em Massa", "", 0xffa500)
         if author:
             log_embed.add_field(name="Autor", value=author.mention, inline=False)
@@ -216,7 +229,7 @@ class RedCommunityBot(commands.Bot):
         log_view = self.DmLogView(
             author=author or self.user, successful_members=successful_members, failed_members=failed_members
         )
-        await self.log_to_channel(guild, log_embed, view=log_view)
+        await self.log_to_channel(guild, log_embed, log_type="bot", view=log_view)
 
     async def execute_dmall_send(self, message: str, author: discord.User = None):
         """Executa o envio de DMs para todos os membros únicos do bot."""
@@ -224,7 +237,6 @@ class RedCommunityBot(commands.Bot):
         
         successful_members, failed_members = await self._send_dms_to_list(list(unique_members), message)
 
-        # Log
         log_embed = self.create_embed("Log: Envio de DM Global", "", 0xffa500)
         if author:
             log_embed.add_field(name="Autor", value=author.mention, inline=False)
@@ -238,7 +250,7 @@ class RedCommunityBot(commands.Bot):
             author=author or self.user, successful_members=successful_members, failed_members=failed_members
         )
         for guild in self.guilds:
-            await self.log_to_channel(guild, log_embed, view=log_view)
+            await self.log_to_channel(guild, log_embed, log_type="bot", view=log_view)
 
     async def _send_dms_to_list(self, members: list, message: str) -> tuple[list, list]:
         """Função auxiliar para enviar DMs para uma lista de membros."""
@@ -254,8 +266,6 @@ class RedCommunityBot(commands.Bot):
                 failed.append(member)
             await asyncio.sleep(3.0) # Rate limit
         return successful, failed
-
-    # --- TAREFA DE AGENDAMENTO ---
 
     @tasks.loop(minutes=1)
     async def check_scheduled_dms(self):
@@ -296,24 +306,28 @@ class RedCommunityBot(commands.Bot):
         await self.wait_until_ready()
 
 
-    # --- MÉTODO PARA LOGS ---
+    async def log_to_channel(self, guild: discord.Guild, embed: discord.Embed, log_type: str, *, view: discord.ui.View = None):
+        """
+        Busca o canal de log apropriado no DB e envia o embed.
+        log_type deve ser uma das chaves de LOG_TYPES (ex: 'bot', 'canal', 'mensagem').
+        """
+        from commands.geral.configLog import LOG_TYPES # Importação local para evitar dependência circular
+        column_name = LOG_TYPES.get(log_type, {}).get("column")
 
-    async def log_to_channel(self, guild: discord.Guild, embed: discord.Embed, *, view: discord.ui.View = None):
-        """Busca o canal de log no DB e envia o embed."""
+        if not column_name:
+            print(f"Tipo de log inválido '{log_type}' para o servidor {guild.name}.")
+            return
         
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT log_channel_id FROM server_configs WHERE guild_id = ?", (guild.id,))
+            cursor.execute(f"SELECT {column_name} FROM server_configs WHERE guild_id = ?", (guild.id,))
             result = cursor.fetchone()
 
         if result and result[0]:
             log_channel_id = result[0]
             log_channel = self.get_channel(log_channel_id)
-            
             if log_channel:
                 try:
                     await log_channel.send(embed=embed, view=view)
                 except discord.Forbidden:
                     print(f"Sem permissão no canal de log {log_channel_id} do servidor {guild.name}.")
-            else:
-                print(f"Canal de ID {log_channel_id} não encontrado no servidor {guild.name}.")

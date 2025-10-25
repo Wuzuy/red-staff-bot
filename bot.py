@@ -1,6 +1,9 @@
-# Importa a classe do bot e o token
 from core import RedCommunityBot
-from config import DISCORD_TOKEN
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 if __name__ == "__main__":
     if not DISCORD_TOKEN:
@@ -8,4 +11,3 @@ if __name__ == "__main__":
     else:
         bot = RedCommunityBot()
         bot.run(DISCORD_TOKEN)
-

@@ -66,7 +66,7 @@ class BirthdayRegisterModal(discord.ui.Modal, title="Registrar seu Aniversário"
             log_embed = self.bot_instance.create_user_embed(
                 interaction.user, self.guild, log_description, title="Log: Gerenciamento de Aniversários", color=0x2ecc71
             )
-            await self.bot_instance.log_to_channel(self.guild, log_embed)
+            await self.bot_instance.log_to_channel(self.guild, log_embed, log_type="bot")
 
             await interaction.response.send_message("Seu aniversário foi registrado com sucesso! 🎉", ephemeral=True)
             await self.bot_instance._update_birthday_message(self.guild.id) # Atualiza o embed
@@ -149,7 +149,7 @@ class AdminAddBirthdayModal(discord.ui.Modal, title="Adicionar Aniversário (Adm
             log_embed = self.bot_instance.create_user_embed(
                 interaction.user, self.guild, log_description, title="Log: Gerenciamento de Aniversários", color=0x00bfff
             )
-            await self.bot_instance.log_to_channel(self.guild, log_embed)
+            await self.bot_instance.log_to_channel(self.guild, log_embed, log_type="bot")
 
             await interaction.response.send_message(f"Aniversário de {target_user.display_name} ({day}/{month}) adicionado/atualizado com sucesso! 🎉", ephemeral=True)
             await self.bot_instance._update_birthday_message(self.guild.id)
@@ -217,7 +217,7 @@ class AdminChangeBirthdayModal(discord.ui.Modal, title="Alterar Aniversário (Ad
             log_embed = self.bot_instance.create_user_embed(
                 interaction.user, self.guild, log_description, title="Log: Gerenciamento de Aniversários", color=0xf1c40f
             )
-            await self.bot_instance.log_to_channel(self.guild, log_embed)
+            await self.bot_instance.log_to_channel(self.guild, log_embed, log_type="bot")
 
             user_name = target_user.display_name if target_user else f"Usuário {self.user_id}"
             await interaction.response.send_message(f"Aniversário de {user_name} alterado para {day}/{month} com sucesso! 🎉", ephemeral=True)
@@ -291,7 +291,7 @@ class AdminBirthdayManagementView(BaseView):
                     log_embed = self.bot_instance.create_user_embed(
                         select_interaction.user, self.guild, log_description, title="Log: Gerenciamento de Aniversários", color=0xe74c3c
                     )
-                    await self.bot_instance.log_to_channel(self.guild, log_embed)
+                    await self.bot_instance.log_to_channel(self.guild, log_embed, log_type="bot")
 
                 conn.commit()
 
