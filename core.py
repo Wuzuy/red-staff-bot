@@ -256,7 +256,7 @@ class RedCommunityBot(commands.Bot):
         """Função auxiliar para enviar DMs para uma lista de membros."""
         successful = []
         failed = []
-        message_dm = f"# <:red1:1431082037900738620><:red2:1431082036147523725>\n\n{message}"
+        message_dm = f"{message}"
         
         for member in members:
             try:
