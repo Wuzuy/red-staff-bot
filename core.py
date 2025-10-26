@@ -272,7 +272,7 @@ class RedCommunityBot(commands.Bot):
         """Verifica e envia DMs agendadas a cada minuto."""
         now_brt = datetime.now(self.brasilia_tz)
         current_time = now_brt.strftime("%H:%M")
-        current_day = str(now_brt.isoweekday()) # 1=Segunda, 7=Domingo
+        current_day = str(now_brt.isoweekday() % 7 + 1) # 1=Domingo, 2=Segunda, ..., 7=Sábado
 
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()

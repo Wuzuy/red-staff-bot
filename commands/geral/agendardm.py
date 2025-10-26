@@ -13,7 +13,7 @@ class ScheduleDMModal(discord.ui.Modal):
         self.author_id = author_id
 
         self.time_input = discord.ui.TextInput(label="Horário (HH:MM)", placeholder="Ex: 09:30", min_length=5, max_length=5)
-        self.days_input = discord.ui.TextInput(label="Dias da Semana (1-7, separados por vírgula)", placeholder="1,3,5 (Seg, Qua, Sex)", style=discord.TextStyle.short)
+        self.days_input = discord.ui.TextInput(label="Dias da Semana (1-7, separados por vírgula)", placeholder="1,3,5 (Dom, Ter, Qui)", style=discord.TextStyle.short)
         self.message_input = discord.ui.TextInput(label="Mensagem", style=discord.TextStyle.long, placeholder="Sua mensagem aqui...")
         
         self.add_item(self.time_input)
@@ -49,6 +49,47 @@ class ScheduleDMModal(discord.ui.Modal):
         # Atualiza a view original
         await self.view.update_message(interaction, is_response=True)
 
+class EditScheduleDMModal(discord.ui.Modal):
+    def __init__(self, schedule_id: int, current_time: str, current_days: str, current_message: str):
+        super().__init__(title=f"Editar Agendamento ID: {schedule_id}")
+        self.schedule_id = schedule_id
+
+        self.time_input = discord.ui.TextInput(label="Horário (HH:MM)", default=current_time, min_length=5, max_length=5)
+        self.days_input = discord.ui.TextInput(label="Dias da Semana (1-7, separados por vírgula)", default=current_days, style=discord.TextStyle.short)
+        self.message_input = discord.ui.TextInput(label="Mensagem", default=current_message, style=discord.TextStyle.long)
+
+        self.add_item(self.time_input)
+        self.add_item(self.days_input)
+        self.add_item(self.message_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        time_str = self.time_input.value
+        days_str = self.days_input.value
+        message = self.message_input.value
+
+        if not re.match(r"^\d{2}:\d{2}$", time_str):
+            await interaction.response.send_message("Formato de hora inválido. Use HH:MM.", ephemeral=True)
+            return
+
+        try:
+            days = sorted([str(int(d.strip())) for d in days_str.split(',') if 1 <= int(d.strip()) <= 7])
+            if not days: raise ValueError
+            days_db_str = ",".join(days)
+        except (ValueError, IndexError):
+            await interaction.response.send_message("Formato de dias inválido. Use números de 1 a 7 separados por vírgula.", ephemeral=True)
+            return
+
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE scheduled_dms SET message = ?, send_time = ?, days_of_week = ? WHERE id = ?",
+                (message, time_str, days_db_str, self.schedule_id)
+            )
+            conn.commit()
+
+        await interaction.response.send_message("✅ Agendamento atualizado com sucesso!", ephemeral=True)
+        await self.view.update_message(interaction, is_response=True)
+
 class ScheduleDMView(BaseView):
     def __init__(self, author: discord.User, bot_instance, guild: discord.Guild):
         super().__init__(author=author, timeout=900.0)
@@ -66,7 +107,7 @@ class ScheduleDMView(BaseView):
         if not schedules:
             embed.description += "\n\nNenhum agendamento encontrado."
         else:
-            day_map = {"1": "Seg", "2": "Ter", "3": "Qua", "4": "Qui", "5": "Sex", "6": "Sáb", "7": "Dom"}
+            day_map = {"1": "Dom", "2": "Seg", "3": "Ter", "4": "Qua", "5": "Qui", "6": "Sex", "7": "Sáb"}
             for schedule_id, send_time, days_of_week, message in schedules:
                 days_formatted = ", ".join([day_map.get(d, "?") for d in days_of_week.split(',')])
                 msg_preview = (message[:70] + '...') if len(message) > 70 else message
@@ -85,13 +126,46 @@ class ScheduleDMView(BaseView):
         else:
             await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="Adicionar", style=discord.ButtonStyle.success, emoji="<:adicionar:EMOJI_ADICIONAR>")
+    @discord.ui.button(label="Adicionar", style=discord.ButtonStyle.success, emoji="<:adicionar:EMOJI_ADICIONAR>", row=0)
     async def add_schedule(self, interaction: discord.Interaction, button: discord.ui.Button):
         modal = ScheduleDMModal(self.guild.id, self.author.id)
         modal.view = self # Passa a referência da view para o modal
         await interaction.response.send_modal(modal)
 
-    @discord.ui.button(label="Remover", style=discord.ButtonStyle.danger, emoji="<:remover:EMOJI_REMOVER>")
+    @discord.ui.button(label="Editar", style=discord.ButtonStyle.primary, emoji="<:editar:1431082844621930506>", row=0)
+    async def edit_schedule(self, interaction: discord.Interaction, button: discord.ui.Button):
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, send_time, message FROM scheduled_dms WHERE guild_id = ?", (self.guild.id,))
+            schedules = cursor.fetchall()
+
+        if not schedules:
+            await interaction.response.send_message("Não há agendamentos para editar.", ephemeral=True)
+            return
+
+        options = [
+            discord.SelectOption(label=f"ID: {id} | {time} | " + (msg[:50] + '...' if len(msg) > 50 else msg), value=str(id))
+            for id, time, msg in schedules
+        ]
+        select = discord.ui.Select(placeholder="Selecione o agendamento para editar...", options=options)
+
+        async def select_callback(select_interaction: discord.Interaction):
+            schedule_id_to_edit = int(select.values[0])
+            with sqlite3.connect(DB_FILE) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT send_time, days_of_week, message FROM scheduled_dms WHERE id = ?", (schedule_id_to_edit,))
+                schedule_data = cursor.fetchone()
+            
+            self.remove_item(select) # Limpa o select da view
+            modal = EditScheduleDMModal(schedule_id_to_edit, schedule_data[0], schedule_data[1], schedule_data[2])
+            modal.view = self
+            await select_interaction.response.send_modal(modal)
+
+        select.callback = select_callback
+        self.add_item(select)
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="Remover", style=discord.ButtonStyle.danger, emoji="<:remover:EMOJI_REMOVER>", row=0)
     async def remove_schedule(self, interaction: discord.Interaction, button: discord.ui.Button):
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
