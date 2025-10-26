@@ -126,13 +126,13 @@ class ScheduleDMView(BaseView):
         else:
             await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="Adicionar", style=discord.ButtonStyle.success, emoji="<:adicionar:EMOJI_ADICIONAR>", row=0)
+    @discord.ui.button(label="Adicionar", style=discord.ButtonStyle.success, row=0)
     async def add_schedule(self, interaction: discord.Interaction, button: discord.ui.Button):
         modal = ScheduleDMModal(self.guild.id, self.author.id)
         modal.view = self # Passa a referência da view para o modal
         await interaction.response.send_modal(modal)
 
-    @discord.ui.button(label="Editar", style=discord.ButtonStyle.primary, emoji="<:editar:1431082844621930506>", row=0)
+    @discord.ui.button(label="Editar", style=discord.ButtonStyle.primary, row=0)
     async def edit_schedule(self, interaction: discord.Interaction, button: discord.ui.Button):
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -165,7 +165,7 @@ class ScheduleDMView(BaseView):
         self.add_item(select)
         await interaction.response.edit_message(view=self)
 
-    @discord.ui.button(label="Remover", style=discord.ButtonStyle.danger, emoji="<:remover:EMOJI_REMOVER>", row=0)
+    @discord.ui.button(label="Remover", style=discord.ButtonStyle.danger, row=0)
     async def remove_schedule(self, interaction: discord.Interaction, button: discord.ui.Button):
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()

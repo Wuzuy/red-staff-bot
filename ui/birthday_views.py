@@ -239,7 +239,7 @@ class BirthdayRegisterView(discord.ui.View):
         if not interaction.response.is_done():
             await interaction.response.send_message("Ocorreu um erro inesperado. Tente novamente mais tarde.", ephemeral=True)
 
-    @discord.ui.button(label="Registrar Aniversário", style=discord.ButtonStyle.primary, emoji="🎂", custom_id="birthday_register_button")
+    @discord.ui.button(label="Registrar Aniversário", style=discord.ButtonStyle.primary, custom_id="birthday_register_button")
     async def register_birthday_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         bot_instance = interaction.client
         modal = BirthdayRegisterModal(bot_instance, interaction.guild)
@@ -251,12 +251,12 @@ class AdminBirthdayManagementView(BaseView):
         self.bot_instance = bot_instance
         self.guild = guild
 
-    @discord.ui.button(label="Adicionar Aniversário", style=discord.ButtonStyle.success, emoji="➕")
+    @discord.ui.button(label="Adicionar Aniversário", style=discord.ButtonStyle.success)
     async def add_birthday(self, interaction: discord.Interaction, button: discord.ui.Button):
         modal = AdminAddBirthdayModal(self.bot_instance, self.guild)
         await interaction.response.send_modal(modal)
 
-    @discord.ui.button(label="Remover Aniversário", style=discord.ButtonStyle.danger, emoji="➖")
+    @discord.ui.button(label="Remover Aniversário", style=discord.ButtonStyle.danger)
     async def remove_birthday(self, interaction: discord.Interaction, button: discord.ui.Button):
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -304,7 +304,7 @@ class AdminBirthdayManagementView(BaseView):
         self.add_item(select)
         await interaction.response.edit_message(view=self)
 
-    @discord.ui.button(label="Alterar Aniversário", style=discord.ButtonStyle.secondary, emoji="✏️")
+    @discord.ui.button(label="Alterar Aniversário", style=discord.ButtonStyle.secondary)
     async def change_birthday(self, interaction: discord.Interaction, button: discord.ui.Button):
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()

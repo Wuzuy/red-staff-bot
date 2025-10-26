@@ -56,10 +56,10 @@ class DmLogView(BaseView):
         file = discord.File(file_bytes, filename=filename)
         await interaction.response.send_message(f"Aqui está a lista de **{title}**:", file=file, ephemeral=True)
 
-    @discord.ui.button(label="Ver Sucessos", style=discord.ButtonStyle.success, emoji="<:correto:EMOJI_CORRETO>")
+    @discord.ui.button(label="Ver Sucessos", style=discord.ButtonStyle.success)
     async def show_success(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._send_members_file(interaction, self.successful_members, "sucessos.txt", "Membros Alcançados")
 
-    @discord.ui.button(label="Ver Falhas", style=discord.ButtonStyle.danger, emoji="<:errado:EMOJI_ERRADO>")
+    @discord.ui.button(label="Ver Falhas", style=discord.ButtonStyle.danger)
     async def show_failures(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._send_members_file(interaction, self.failed_members, "falhas.txt", "Falhas de Envio")

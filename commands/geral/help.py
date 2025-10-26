@@ -44,6 +44,7 @@ class HelpView(BaseView):
     class HelpSelect(discord.ui.Select):
         def __init__(self):
             options = [
+                discord.SelectOption(label="Comandos Utilitários", value="util", description="Comandos úteis para todos."),
                 discord.SelectOption(label="Comandos de Setor", value="setor", description="Comandos gerais para membros."),
                 discord.SelectOption(label="Comandos de Admin", value="admin", description="Comandos para administradores do servidor."),
                 discord.SelectOption(label="Comandos Super Admin", value="super_admin", description="Comandos para donos do bot.")
@@ -60,7 +61,20 @@ class HelpView(BaseView):
 
             all_commands = sorted(view.bot_instance.commands, key=lambda c: c.name)
 
-            if category == "setor":
+            if category == "util":
+                title = "Comandos Utilitários"
+                description = "Comandos úteis disponíveis para todos os membros."
+
+                for command in all_commands:
+                    if command.hidden or command.name == "help": continue
+                    
+                    command_checks = get_command_checks(command)
+                    # Adiciona comandos que não têm checks de permissão específicos
+                    if not any(check in [has_admin_role, is_super_admin] for check in command_checks) and \
+                       not any(getattr(check, 'is_sector_check', False) for check in command_checks):
+                        filtered_commands.append(command)
+
+            elif category == "setor":
                 title = "Comandos de Setor"
                 description = "Estes são os comandos específicos para este tipo de servidor."
 
