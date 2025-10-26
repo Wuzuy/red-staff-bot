@@ -66,7 +66,7 @@ class ScheduleDMView(BaseView):
         if not schedules:
             embed.description += "\n\nNenhum agendamento encontrado."
         else:
-            day_map = {"1": "Dom", "2": "Seg", "3": "Ter", "4": "Qua", "5": "Qui", "6": "Sex", "7": "Sab"}
+            day_map = {"1": "Seg", "2": "Ter", "3": "Qua", "4": "Qui", "5": "Sex", "6": "Sáb", "7": "Dom"}
             for schedule_id, send_time, days_of_week, message in schedules:
                 days_formatted = ", ".join([day_map.get(d, "?") for d in days_of_week.split(',')])
                 msg_preview = (message[:70] + '...') if len(message) > 70 else message
