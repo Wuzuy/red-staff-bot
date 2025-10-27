@@ -200,72 +200,96 @@ class RedCommunityBot(commands.Bot):
             else:
                 print(f"Canal de aniversário {channel_id} não encontrado no guild {guild_id}.")
 
-    async def execute_dm_send(self, guild: discord.Guild, message: str, author: discord.User = None):
-        """Executa o envio de DMs para membros de um servidor específico."""
+    async def _execute_dm_task(self, members_to_dm: list, message: str, author: discord.User, feedback_msg: discord.Message = None, guild: discord.Guild = None, is_global: bool = False):
+        """
+        Tarefa assíncrona que envia DMs para uma lista de membros e atualiza o feedback.
+        """
+        total_members = len(members_to_dm)
+        successful_members = []
+        failed_members = []
+
+        async def update_feedback():
+            if not feedback_msg: return
+            progress = (len(successful_members) + len(failed_members)) / total_members if total_members > 0 else 1
+            progress_bar = "█" * int(progress * 20) + "░" * (20 - int(progress * 20))
+            
+            desc = (
+                f"**Progresso:** `{len(successful_members) + len(failed_members)}/{total_members}`\n"
+                f"**Sucessos:** `{len(successful_members)}` | **Falhas:** `{len(failed_members)}`\n"
+                f"[{progress_bar}] {progress:.0%}"
+            )
+            embed = self.create_embed("Envio de DM em Andamento...", desc, 0xffa500)
+            try:
+                await feedback_msg.edit(embed=embed)
+            except discord.NotFound:
+                print("Mensagem de feedback para envio de DM não encontrada (pode ter sido apagada).")
+
+        # Envia DMs e atualiza o feedback a cada 25 envios
+        for i, member in enumerate(members_to_dm):
+            try:
+                await member.send(message)
+                successful_members.append(member)
+            except discord.errors.HTTPException as e:
+                if e.status == 429: # Rate limited
+                    retry_after = e.retry_after or 5
+                    print(f"Rate limited. Aguardando {retry_after}s...")
+                    await asyncio.sleep(retry_after)
+                    # Tenta novamente com o mesmo membro
+                    try:
+                        await member.send(message)
+                        successful_members.append(member)
+                    except (discord.Forbidden, discord.HTTPException):
+                        failed_members.append(member)
+                else:
+                    failed_members.append(member)
+            except discord.Forbidden:
+                failed_members.append(member)
+
+            if (i + 1) % 25 == 0 or (i + 1) == total_members:
+                await update_feedback()
+
+        # Log final
+        log_title = "Log: Envio de DM Global" if is_global else "Log: Envio de DM em Massa"
+        log_embed = self.create_embed(log_title, "", 0xffa500)
+        log_embed.add_field(name="Autor", value=author.mention, inline=False)
+        log_embed.add_field(name="Alcançados", value=f"`{len(successful_members)}`", inline=True)
+        log_embed.add_field(name="Falhas", value=f"`{len(failed_members)}`", inline=True)
+        log_embed.add_field(name="Mensagem", value=f"```\n{message}\n```", inline=False)
+
+        log_view = self.DmLogView(author=author, successful_members=successful_members, failed_members=failed_members)
+        
+        if is_global:
+            for g in self.guilds:
+                await self.log_to_channel(g, log_embed, log_type="bot", view=log_view)
+        elif guild:
+            await self.log_to_channel(guild, log_embed, log_type="bot", view=log_view)
+
+        # Edita a mensagem de feedback final
+        if feedback_msg:
+            final_embed = self.create_embed("✅ Envio Concluído!", "O relatório detalhado foi enviado para o canal de logs.", 0x2ecc71)
+            try:
+                await feedback_msg.edit(embed=final_embed, delete_after=60)
+            except discord.NotFound:
+                pass
+
+    async def execute_dm_send(self, guild: discord.Guild, message: str, author: discord.User, feedback_msg: discord.Message):
+        """Prepara e inicia a tarefa de envio de DMs para um servidor específico."""
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT role_id FROM dm_roles WHERE guild_id = ?", (guild.id,))
             allowed_role_ids = {row[0] for row in cursor.fetchall()}
 
-        members_to_dm = []
         if not allowed_role_ids:
             members_to_dm = [m for m in guild.members if not m.bot]
         else:
-            for member in guild.members:
-                if not member.bot and any(role.id in allowed_role_ids for role in member.roles):
-                    members_to_dm.append(member)
+            members_to_dm = [m for m in guild.members if not m.bot and any(role.id in allowed_role_ids for role in m.roles)]
+        
+        asyncio.create_task(self._execute_dm_task(members_to_dm, message, author, feedback_msg, guild=guild, is_global=False))
 
-        successful_members, failed_members = await self._send_dms_to_list(members_to_dm, message)
-
-        log_embed = self.create_embed("Log: Envio de DM em Massa", "", 0xffa500)
-        if author:
-            log_embed.add_field(name="Autor", value=author.mention, inline=False)
-        else: # Agendado
-            log_embed.add_field(name="Tipo", value="Agendado", inline=False)
-        log_embed.add_field(name="Alcançados", value=f"`{len(successful_members)}`", inline=True)
-        log_embed.add_field(name="Falhas", value=f"`{len(failed_members)}`", inline=True)
-        log_embed.add_field(name="Mensagem", value=f"```\n{message}\n```", inline=False)
-
-        log_view = self.DmLogView(
-            author=author or self.user, successful_members=successful_members, failed_members=failed_members
-        )
-        await self.log_to_channel(guild, log_embed, log_type="bot", view=log_view)
-
-    async def execute_dmall_send(self, message: str, author: discord.User = None):
-        """Executa o envio de DMs para todos os membros únicos do bot."""
+    async def execute_dmall_send(self, message: str, author: discord.User, feedback_msg: discord.Message):
+        """Prepara e inicia a tarefa de envio de DMs para todos os membros únicos do bot."""
         unique_members = {m for guild in self.guilds for m in guild.members if not m.bot}
-        
-        successful_members, failed_members = await self._send_dms_to_list(list(unique_members), message)
-
-        log_embed = self.create_embed("Log: Envio de DM Global", "", 0xffa500)
-        if author:
-            log_embed.add_field(name="Autor", value=author.mention, inline=False)
-        else: # Agendado
-            log_embed.add_field(name="Tipo", value="Agendado", inline=False)
-        log_embed.add_field(name="Alcançados", value=f"`{len(successful_members)}`", inline=True)
-        log_embed.add_field(name="Falhas", value=f"`{len(failed_members)}`", inline=True)
-        log_embed.add_field(name="Mensagem", value=f"```\n{message}\n```", inline=False)
-
-        log_view = self.DmLogView(
-            author=author or self.user, successful_members=successful_members, failed_members=failed_members
-        )
-        for guild in self.guilds:
-            await self.log_to_channel(guild, log_embed, log_type="bot", view=log_view)
-
-    async def _send_dms_to_list(self, members: list, message: str) -> tuple[list, list]:
-        """Função auxiliar para enviar DMs para uma lista de membros."""
-        successful = []
-        failed = []
-        message_dm = f"{message}"
-        
-        for member in members:
-            try:
-                await member.send(message_dm)
-                successful.append(member)
-            except (discord.Forbidden, discord.HTTPException):
-                failed.append(member)
-            await asyncio.sleep(3.0) # Rate limit
-        return successful, failed
+        asyncio.create_task(self._execute_dm_task(list(unique_members), message, author, feedback_msg, is_global=True))
 
     @tasks.loop(minutes=1)
     async def check_scheduled_dms(self):
@@ -288,17 +312,17 @@ class RedCommunityBot(commands.Bot):
                     guild = self.get_guild(guild_id)
                     if guild:
                         print(f"Enviando DM agendada para o servidor: {guild.name}")
-                        asyncio.create_task(self.execute_dm_send(guild, message))
+                        asyncio.create_task(self.execute_dm_send(guild, message, self.user, None)) # Sem feedback_msg para agendado
 
             # Verifica DMs globais
             cursor.execute("SELECT message FROM scheduled_dmall WHERE send_time = ?", (current_time,))
             for (message,) in cursor.fetchall():
                 day_cursor = conn.cursor()
                 day_cursor.execute("SELECT days_of_week FROM scheduled_dmall WHERE message = ? AND send_time = ?", (message, current_time))
-                days_str = day_cursor.fetchone()[0]
+                days_str = day_cursor.fetchone()[0] if day_cursor.fetchone() else ""
                 if current_day in days_str.split(','):
                     print("Enviando DMALL agendada global.")
-                    asyncio.create_task(self.execute_dmall_send(message))
+                    asyncio.create_task(self.execute_dmall_send(message, self.user, None)) # Sem feedback_msg para agendado
 
     @check_scheduled_dms.before_loop
     async def before_check_scheduled_dms(self):

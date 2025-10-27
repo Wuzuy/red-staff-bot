@@ -14,12 +14,12 @@ class DM(commands.Cog):
         try:
             await ctx.message.delete()
         except discord.HTTPException: pass
-        
-        feedback_embed = self.client.create_embed("Envio em Massa Iniciado", "O envio da sua mensagem foi iniciado em segundo plano. Um relatório será enviado no canal de logs quando for concluído.")
-        await ctx.send(embed=feedback_embed, delete_after=20)
+
+        initial_embed = self.client.create_embed("Preparando Envio...", "Coletando membros e iniciando o processo. Esta mensagem será atualizada com o progresso.", 0x3498db)
+        feedback_msg = await ctx.send(embed=initial_embed)
         
         # Chama a função centralizada para fazer o trabalho pesado
-        await self.client.execute_dm_send(ctx.guild, message, ctx.author)
+        await self.client.execute_dm_send(ctx.guild, message, ctx.author, feedback_msg)
         
     @dm.error
     async def dm_error(self, ctx: commands.Context, error):

@@ -13,12 +13,12 @@ class DMAll(commands.Cog):
         try:
             await ctx.message.delete()
         except discord.HTTPException: pass
-        
-        feedback_embed = self.client.create_embed("Envio Global Iniciado", "O envio da sua mensagem foi iniciado em segundo plano. Relatórios serão enviados nos canais de logs quando for concluído.")
-        await ctx.send(embed=feedback_embed, delete_after=20)
+
+        initial_embed = self.client.create_embed("Preparando Envio Global...", "Coletando membros e iniciando o processo. Esta mensagem será atualizada com o progresso.", 0x3498db)
+        feedback_msg = await ctx.send(embed=initial_embed)
         
         # Chama a função centralizada
-        await self.client.execute_dmall_send(message, ctx.author)
+        await self.client.execute_dmall_send(message, ctx.author, feedback_msg)
 
     @dmall.error
     async def dmall_error(self, ctx: commands.Context, error):

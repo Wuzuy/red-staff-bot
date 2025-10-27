@@ -35,19 +35,17 @@ class BotInfo(commands.Cog):
 
         # Adicionar a lista de servidores
         guild_names = sorted([guild.name for guild in self.client.guilds])
-        guild_list_str = ""
-        for i, name in enumerate(guild_names):
-            # Discord embed field value limit is 1024 characters
-            # Leave some room for "..." and the count
-            if len(guild_list_str) + len(name) + 2 > 1000:
-                guild_list_str += f"\n... e mais {len(guild_names) - i} servidores."
+        guild_list_parts = []
+        current_length = 0
+        for name in guild_names:
+            # Limite do campo de embed é 1024. Deixamos uma margem.
+            if current_length + len(name) + 1 > 1020:
+                remaining = len(guild_names) - len(guild_list_parts)
+                guild_list_parts.append(f"... e mais {remaining} servidores.")
                 break
-            guild_list_str += f"{name}\n"
-        
-        if not guild_list_str: # Fallback if no guilds or all names are too long
-            guild_list_str = "Nenhum servidor encontrado ou lista muito longa para exibir."
-        else:
-            guild_list_str = guild_list_str.strip() # Remove trailing newline
+            guild_list_parts.append(name)
+            current_length += len(name) + 1
+        guild_list_str = "\n".join(guild_list_parts) or "Nenhum servidor encontrado."
 
         embed.add_field(name="Servidores Atuais", value=guild_list_str, inline=False)
         embed.set_thumbnail(url=self.client.user.display_avatar.url)
