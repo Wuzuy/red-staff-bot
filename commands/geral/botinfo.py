@@ -32,6 +32,24 @@ class BotInfo(commands.Cog):
             f"Ele pode alcançar `{member_count}` membros únicos com DMs globais."
         )
         embed.add_field(name="Super Admins", value=", ".join([f"<@{sa_id}>" for sa_id in self.client.super_admin_ids]), inline=False)
+
+        # Adicionar a lista de servidores
+        guild_names = sorted([guild.name for guild in self.client.guilds])
+        guild_list_str = ""
+        for i, name in enumerate(guild_names):
+            # Discord embed field value limit is 1024 characters
+            # Leave some room for "..." and the count
+            if len(guild_list_str) + len(name) + 2 > 1000:
+                guild_list_str += f"\n... e mais {len(guild_names) - i} servidores."
+                break
+            guild_list_str += f"{name}\n"
+        
+        if not guild_list_str: # Fallback if no guilds or all names are too long
+            guild_list_str = "Nenhum servidor encontrado ou lista muito longa para exibir."
+        else:
+            guild_list_str = guild_list_str.strip() # Remove trailing newline
+
+        embed.add_field(name="Servidores Atuais", value=guild_list_str, inline=False)
         embed.set_thumbnail(url=self.client.user.display_avatar.url)
         
         await ctx.send(embed=embed, delete_after=60) # Apaga após 1 minuto
