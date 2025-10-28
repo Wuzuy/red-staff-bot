@@ -52,7 +52,7 @@ class RedCommunityBot(commands.Bot):
     async def setup_hook(self):
         """Encontra e carrega todas as extensões (cogs) automaticamente."""
         
-        cogs_folders = ["commands", "events"] 
+        cogs_folders = ["commands", "events", "shake"] 
         
         for folder in cogs_folders:
             for root, dirs, files in os.walk(folder):

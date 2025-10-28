@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import sqlite3
 from database.database_manager import DB_FILE
-import config
+from utils.checks import CALL_SERVERS_IDS
 
 class MemberEvents(commands.Cog):
     def __init__(self, client: commands.Bot):
@@ -11,7 +11,7 @@ class MemberEvents(commands.Cog):
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         """Remove o aniversário de um membro se ele sair do servidor."""
-        if member.guild.id not in config.CALL_SERVERS_IDS:
+        if member.guild.id not in CALL_SERVERS_IDS:
             return # Apenas remove aniversários em servidores de call
 
         with sqlite3.connect(DB_FILE) as conn:
@@ -28,7 +28,7 @@ class MemberEvents(commands.Cog):
                 log_embed = self.client.create_user_embed(
                     self.client.user, member.guild, log_description, title="Log: Gerenciamento de Aniversários", color=0x95a5a6
                 )
-                await self.client.log_to_channel(member.guild, log_embed)
+                await self.client.log_to_channel(member.guild, log_embed, log_type="bot")
 
                 await self.client._update_birthday_message(member.guild.id)
 

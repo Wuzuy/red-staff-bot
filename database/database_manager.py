@@ -24,7 +24,8 @@ def initialize_database():
                 log_message_channel_id INTEGER,
                 log_role_channel_id INTEGER,
                 log_join_channel_id INTEGER,
-                log_leave_channel_id INTEGER
+                log_leave_channel_id INTEGER,
+                log_moderation_channel_id INTEGER
             )
         """)
 
@@ -52,11 +53,22 @@ def initialize_database():
         except sqlite3.OperationalError: pass
         try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_leave_channel_id INTEGER;")
         except sqlite3.OperationalError: pass
+        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_moderation_channel_id INTEGER;")
+        except sqlite3.OperationalError: pass
 
         
         # Tabela de cargos com permissão de admin por servidor
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS perm_roles (
+            guild_id INTEGER,
+            role_id INTEGER,
+            PRIMARY KEY (guild_id, role_id)
+        )
+        """)
+
+        # Tabela de cargos com permissão de moderador por servidor
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mod_roles (
             guild_id INTEGER,
             role_id INTEGER,
             PRIMARY KEY (guild_id, role_id)
