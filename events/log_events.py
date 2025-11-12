@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import asyncio
 
+from config import DEVELOPER_ID, DEVELOPER_ROLE_NAME
 class LogEvents(commands.Cog, name="Eventos de Log"):
     """Cog para lidar com todos os eventos de log do servidor."""
     def __init__(self, client: commands.Bot):
@@ -128,6 +129,21 @@ class LogEvents(commands.Cog, name="Eventos de Log"):
 
         added_roles = roles_after - roles_before
         removed_roles = roles_before - roles_after
+
+        # --- Verificação de exclusividade do cargo de Desenvolvedor ---
+        developer_role = discord.utils.get(after.guild.roles, name=DEVELOPER_ROLE_NAME)
+
+        # Verifica se o cargo "Desenvolvedor" foi adicionado indevidamente a um não-desenvolvedor
+        if after.id != DEVELOPER_ID and developer_role and developer_role in added_roles:
+            try:
+                # Remove o cargo do membro imediatamente
+                await after.remove_roles(developer_role, reason="Cargo exclusivo do desenvolvedor.")
+                print(f"Removido cargo '{DEVELOPER_ROLE_NAME}' indevidamente atribuído a {after.name} ({after.id}) em '{after.guild.name}'.")
+                # Remove o cargo da lista de 'added_roles' para não logar a adição indevida
+                added_roles.remove(developer_role)
+            except discord.Forbidden:
+                print(f"Falha ao remover cargo '{DEVELOPER_ROLE_NAME}' de {after.name} em '{after.guild.name}' (sem permissão).")
+        # --- Fim da verificação ---
 
         moderator_mention = moderator.mention if moderator else "Não identificado"
 
