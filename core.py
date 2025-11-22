@@ -57,7 +57,7 @@ class RedCommunityBot(commands.Bot):
         # O diretório raiz ('.') não deve ser incluído aqui para evitar tentar carregar
         # arquivos não-cog como cogs (ex: bot.py, core.py).
         cog_subdirectories = ["commands", "events", "shake"]
-        
+
         # Carrega cogs em subdiretórios
         for folder in cog_subdirectories:
             for root, dirs, files in os.walk(folder):
