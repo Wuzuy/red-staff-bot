@@ -16,14 +16,16 @@ async def main():
 
     # Carregar cogs de comandos
     for folder in ['commands/geral', 'commands/setor_chat', 'commands/setor_call']:
-        for filename in os.listdir(f'./{folder}'):
-            if filename.endswith('.py'):
-                await bot.load_extension(f'{folder.replace("/", ".")}.{filename[:-3]}')
+        if os.path.isdir(f'./{folder}'): # Verifica se o diretório existe
+            for filename in os.listdir(f'./{folder}'):
+                if filename.endswith('.py'):
+                    await bot.load_extension(f'{folder.replace("/", ".")}.{filename[:-3]}')
 
     # Carregar cogs de listeners/eventos
-    for filename in os.listdir('./listeners'):
-        if filename.endswith('.py'):
-            await bot.load_extension(f'listeners.{filename[:-3]}')
+    if os.path.isdir('./listeners'): # Verifica se o diretório existe
+        for filename in os.listdir('./listeners'):
+            if filename.endswith('.py'):
+                await bot.load_extension(f'listeners.{filename[:-3]}')
 
     await bot.start(DISCORD_TOKEN)
 
