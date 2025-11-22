@@ -29,17 +29,11 @@ class DMAll(commands.Cog):
             pass
 
         if isinstance(error, commands.CheckFailure):
-            await ctx.send(
-                f"{ctx.author.mention}, você não tem permissão para usar este comando.\n"
-                f"Apenas Super Admins do bot podem usar este comando.",
-                delete_after=10
-            )
+            embed = self.client.create_embed("Acesso Negado", f"{ctx.author.mention}, apenas Super Admins podem usar este comando.")
+            await ctx.send(embed=embed, delete_after=10)
         elif isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(
-                f"{ctx.author.mention}, parâmetros do comando inválido.\n"
-                f"Tente: `r.dmall <mensagem>`",
-                delete_after=10
-            )
+            embed = self.client.create_embed("Comando Inválido", f"Uso correto: `{ctx.prefix}{ctx.invoked_with} <mensagem>`")
+            await ctx.send(embed=embed, delete_after=10)
         else:
             print(f"Erro em r.dmall: {error}")
             raise error

@@ -7,12 +7,16 @@ from ui.base_view import BaseView
 
 LOG_TYPES = {
     "bot": {"name": "Log do Bot", "column": "log_bot_channel_id", "description": "Logs de comandos e ações do bot."},
-    "canal": {"name": "Log de Canais", "column": "log_channel_channel_id", "description": "Criação, exclusão e edição de canais."},
-    "mensagem": {"name": "Log de Mensagens", "column": "log_message_channel_id", "description": "Mensagens editadas e apagadas."},
-    "cargos": {"name": "Log de Cargos", "column": "log_role_channel_id", "description": "Criação, exclusão e edição de cargos."},
     "entrada": {"name": "Log de Entrada", "column": "log_join_channel_id", "description": "Registra quando um membro entra no servidor."},
     "saida": {"name": "Log de Saída", "column": "log_leave_channel_id", "description": "Registra quando um membro sai do servidor."},
-    "moderacao": {"name": "Log de Moderação", "column": "log_moderation_channel_id", "description": "Logs de ban, kick, mute, etc."}
+    "canal": {"name": "Log de Canais", "column": "log_channel_channel_id", "description": "Criação, exclusão e edição de canais."},
+    "cargos": {"name": "Log de Cargos", "column": "log_role_channel_id", "description": "Criação, exclusão e edição de cargos."},
+    "mensagem": {"name": "Log de Mensagens", "column": "log_message_channel_id", "description": "Mensagens editadas e apagadas."},
+    "servidor": {"name": "Log do Servidor", "column": "log_server_channel_id", "description": "Logs de atualizações do servidor."},
+    "castigo": {"name": "Log de Castigo", "column": "log_punishment_channel_id", "description": "Logs de castigos (ex: mute)."},
+    "expulsao": {"name": "Log de Expulsão", "column": "log_kick_channel_id", "description": "Logs de membros expulsos (kick)."},
+    "banimento": {"name": "Log de Banimento", "column": "log_ban_channel_id", "description": "Logs de membros banidos."},
+    "ticket": {"name": "Log de Tickets", "column": "log_ticket_channel_id", "description": "Logs de criação e gestão de tickets."},
 }
 
 class ConfigLogView(BaseView):
@@ -23,7 +27,7 @@ class ConfigLogView(BaseView):
         self.add_item(self.LogTypeSelect())
 
     async def generate_embed(self) -> discord.Embed:
-        embed = self.bot_instance.create_user_embed(self.author, self.guild, "Configure os canais para cada tipo de log.", title="Painel de Configuração de Logs")
+        embed = self.bot_instance.create_user_embed(self.author, self.guild, "Selecione um tipo de log abaixo para definir o canal onde os registros serão enviados.", title="Painel de Configuração de Logs")
         
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -97,13 +101,8 @@ class ConfigLog(commands.Cog):
         
         if isinstance(error, commands.CheckFailure):
             await ctx.send(
-                f"{ctx.author.mention}, você não tem permissão para usar este comando.\n"
-                f"Apenas administradores ou cargos configurados podem usar.",
-                delete_after=10
+                embed=self.client.create_embed("Acesso Negado", f"{ctx.author.mention}, você não tem permissão para usar este comando."), delete_after=10
             )
-        else:
-            print(f"Erro em r.configlog: {error}")
-            raise error
 
 async def setup(client: commands.Bot) -> None:
     await client.add_cog(ConfigLog(client))

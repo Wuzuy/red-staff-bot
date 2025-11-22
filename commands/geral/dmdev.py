@@ -58,7 +58,7 @@ class DmDev(commands.Cog):
         embed = discord.Embed(
             title="📢 Aviso para Desenvolvedores/Administradores",
             description=message,
-            color=0xffa500 # Laranja
+            color=self.client.default_color
         )
         embed.set_footer(text=f"Enviado por: {ctx.author.display_name}")
 

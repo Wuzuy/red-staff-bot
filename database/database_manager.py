@@ -25,7 +25,11 @@ def initialize_database():
                 log_role_channel_id INTEGER,
                 log_join_channel_id INTEGER,
                 log_leave_channel_id INTEGER,
-                log_moderation_channel_id INTEGER
+                log_server_channel_id INTEGER,
+                log_punishment_channel_id INTEGER,
+                log_kick_channel_id INTEGER,
+                log_ban_channel_id INTEGER,
+                log_ticket_channel_id INTEGER
             )
         """)
 
@@ -53,8 +57,21 @@ def initialize_database():
         except sqlite3.OperationalError: pass
         try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_leave_channel_id INTEGER;")
         except sqlite3.OperationalError: pass
-        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_moderation_channel_id INTEGER;")
+        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_server_channel_id INTEGER;")
         except sqlite3.OperationalError: pass
+        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_punishment_channel_id INTEGER;")
+        except sqlite3.OperationalError: pass
+        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_kick_channel_id INTEGER;")
+        except sqlite3.OperationalError: pass
+        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_ban_channel_id INTEGER;")
+        except sqlite3.OperationalError: pass
+        try: cursor.execute("ALTER TABLE server_configs ADD COLUMN log_ticket_channel_id INTEGER;")
+        except sqlite3.OperationalError: pass
+
+        # Remove a coluna antiga de moderação, se existir
+        try:
+            cursor.execute("ALTER TABLE server_configs DROP COLUMN log_moderation_channel_id;")
+        except sqlite3.OperationalError: pass # Ignora se a coluna não existe
 
         
         # Tabela de cargos com permissão de admin por servidor

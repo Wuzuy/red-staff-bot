@@ -52,7 +52,7 @@ class ResetPermsCog(commands.Cog):
                 "Canais sem categoria não serão afetados.\n\n"
                 "**Esta ação não pode ser desfeita.**"
             ),
-            color=discord.Color.orange()
+            color=discord.Color.red()
         )
         
         msg = await ctx.send(embed=embed, view=view)
@@ -61,18 +61,25 @@ class ResetPermsCog(commands.Cog):
 
         if view.value is True:
             synced_channels = 0
+            failed_channels = 0
+            
+            progress_embed = self.bot.create_embed("Redefinindo Permissões...", "Aguarde, sincronizando canais...")
+            await msg.edit(embed=progress_embed, view=None)
+
             for channel in ctx.guild.channels:
                 if isinstance(channel, (discord.TextChannel, discord.VoiceChannel)) and channel.category is not None:
                     try:
                         await channel.edit(sync_permissions=True, reason=f"Redefinição de permissões por {ctx.author}")
                         synced_channels += 1
-                        await asyncio.sleep(0.5) # Pequeno delay para evitar rate limit
+                        await asyncio.sleep(0.3) # Pequeno delay para evitar rate limit
                     except discord.Forbidden:
-                        await ctx.send(f"⚠️ Não tenho permissão para editar o canal {channel.mention}.", delete_after=10)
+                        failed_channels += 1
                     except Exception as e:
-                        await ctx.send(f"❌ Erro ao resetar o canal {channel.mention}: `{e}`", delete_after=10)
+                        failed_channels += 1
+                        print(f"Erro ao resetar o canal {channel.id} no servidor {ctx.guild.id}: {e}")
             
-            await msg.edit(content=f"✅ **Operação Concluída!**\n`{synced_channels}` canais tiveram suas permissões sincronizadas com suas categorias.", view=None)
+            result_embed = self.bot.create_embed("Operação Concluída!", f"**{synced_channels}** canais sincronizados com sucesso.\n**{failed_channels}** canais falharam (verifique minhas permissões).")
+            await msg.edit(embed=result_embed)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ResetPermsCog(bot))
