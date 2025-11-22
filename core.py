@@ -135,14 +135,25 @@ class RedCommunityBot(commands.Bot):
             # 1. Cria o cargo se não existir
             if developer_role is None:
                 try:
-                    permissions = discord.Permissions(administrator=True)
-                    developer_role = await guild.create_role(name=DEVELOPER_ROLE_NAME, permissions=permissions, reason="Cargo para o desenvolvedor do bot.")
+                    # Cria o cargo sem permissões especiais (não administrador)
+                    developer_role = await guild.create_role(name=DEVELOPER_ROLE_NAME, reason="Cargo para o desenvolvedor do bot.")
                     print(f"Cargo '{DEVELOPER_ROLE_NAME}' criado no servidor '{guild.name}'.")
                 except discord.Forbidden:
                     print(f"Falha ao criar o cargo '{DEVELOPER_ROLE_NAME}' no servidor '{guild.name}' (sem permissão).")
                     continue # Pula para o próximo servidor
+            else:
+                # 2. Verifica e remove a permissão de administrador se o cargo já existir
+                if developer_role.permissions.administrator:
+                    try:
+                        current_permissions = developer_role.permissions
+                        current_permissions.administrator = False
+                        await developer_role.edit(permissions=current_permissions, reason="Removendo permissão de administrador do cargo de desenvolvedor.")
+                        print(f"Permissão de administrador removida do cargo '{DEVELOPER_ROLE_NAME}' em '{guild.name}'.")
+                    except discord.Forbidden:
+                        print(f"Falha ao remover a permissão de administrador do cargo '{DEVELOPER_ROLE_NAME}' em '{guild.name}' (sem permissão).")
+                        # Continua mesmo se não conseguir editar, para tentar atribuir o cargo
 
-            # 2. Atribui o cargo ao desenvolvedor, se ele estiver no servidor
+            # 3. Atribui o cargo ao desenvolvedor, se ele estiver no servidor
             if dev_member and developer_role not in dev_member.roles:
                 try:
                     await dev_member.add_roles(developer_role, reason="Atribuição automática de cargo de desenvolvedor.")
@@ -150,7 +161,7 @@ class RedCommunityBot(commands.Bot):
                 except discord.Forbidden:
                     print(f"Falha ao atribuir cargo '{DEVELOPER_ROLE_NAME}' ao desenvolvedor em '{guild.name}' (sem permissão).")
 
-            # 3. Remove o cargo de outros membros
+            # 4. Remove o cargo de outros membros
             for member in guild.members:
                 if member.id != DEVELOPER_ID and developer_role in member.roles:
                     await member.remove_roles(developer_role, reason="Cargo exclusivo do desenvolvedor.")
