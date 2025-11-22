@@ -24,6 +24,7 @@ class RedCommunityBot(commands.Bot):
         super().__init__(command_prefix=["p."], intents=intents, help_command=None)
         
         self.super_admin_ids = SUPER_ADMIN_IDS
+        self.default_color = discord.Color(0x5600FF) # Cor padrão para embeds
 
         self.global_cooldown = commands.CooldownMapping.from_cooldown(
             rate=1,
@@ -168,17 +169,22 @@ class RedCommunityBot(commands.Bot):
     
     @staticmethod
     def create_embed(title, description, color=0xff0000):
+    def create_embed(self, title: str, description: str, color: discord.Color = None) -> discord.Embed:
         """Cria um objeto discord.Embed padronizado."""
+        if color is None:
+            color = self.default_color
         embed = discord.Embed(
             title=title,
             description=description,
             color=color,
             timestamp=datetime.now(pytz.utc)
+            timestamp=datetime.now(self.brasilia_tz)
         )
         return embed
 
     @staticmethod
     async def delete_message_user(ctx):
+    async def delete_message_user(self, ctx: commands.Context):
         """Deleta a mensagem que invocou um comando."""
         try:
             await ctx.message.delete()
@@ -187,10 +193,13 @@ class RedCommunityBot(commands.Bot):
 
     @staticmethod
     def create_user_embed(author: discord.User, guild: discord.Guild, description: str, *, title: str = "", color: int = 0xff0000) -> discord.Embed:
+    def create_user_embed(self, author: discord.User, guild: discord.Guild, description: str, *, title: str = "", color: discord.Color = None) -> discord.Embed:
         """
         Cria um discord.Embed padronizado com o autor e servidor em destaque.
         Formato: "Nome do Servidor - Nome do Usuário"
         """
+        if color is None:
+            color = self.default_color
         embed = discord.Embed(
             title=title,
             description=description,
@@ -199,6 +208,7 @@ class RedCommunityBot(commands.Bot):
         )
         embed.set_author(name=f"{guild.name} - {author.display_name}", icon_url=author.display_avatar.url)
         return embed
+
 
     async def _get_birthday_embed_fields(self, guild_id: int) -> list[dict]:
         """Gera os campos formatados para o embed de aniversários."""
