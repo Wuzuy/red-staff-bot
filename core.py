@@ -76,7 +76,7 @@ class RedCommunityBot(commands.Bot):
 
         # Carrega cogs que estão diretamente no diretório raiz do projeto
         # Adicione aqui outros cogs que estejam diretamente na raiz.
-        root_cogs = ["invite", "channel_events", "message_events"]
+        root_cogs = ["invite"]
         for cog_name in root_cogs:
             try:
                 await self.load_extension(cog_name)
