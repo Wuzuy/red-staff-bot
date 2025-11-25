@@ -14,19 +14,8 @@ async def main():
 
     bot = RedCommunityBot()
 
-    # Carregar cogs de comandos
-    for folder in ['commands/geral', 'commands/setor_chat', 'commands/setor_call']:
-        if os.path.isdir(f'./{folder}'): # Verifica se o diretório existe
-            for filename in os.listdir(f'./{folder}'):
-                if filename.endswith('.py'):
-                    await bot.load_extension(f'{folder.replace("/", ".")}.{filename[:-3]}')
-
-    # Carregar cogs de listeners/eventos
-    if os.path.isdir('./listeners'): # Verifica se o diretório existe
-        for filename in os.listdir('./listeners'):
-            if filename.endswith('.py'):
-                await bot.load_extension(f'listeners.{filename[:-3]}')
-
+    # O carregamento de cogs agora é feito automaticamente
+    # pelo método setup_hook() na classe RedCommunityBot em core.py
     await bot.start(DISCORD_TOKEN)
 
 if __name__ == "__main__":
