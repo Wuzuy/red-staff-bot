@@ -167,8 +167,6 @@ class RedCommunityBot(commands.Bot):
                 if member.id != DEVELOPER_ID and developer_role in member.roles:
                     await member.remove_roles(developer_role, reason="Cargo exclusivo do desenvolvedor.")
     
-    @staticmethod
-    def create_embed(title, description, color=0xff0000):
     def create_embed(self, title: str, description: str, color: discord.Color = None) -> discord.Embed:
         """Cria um objeto discord.Embed padronizado."""
         if color is None:
@@ -177,13 +175,10 @@ class RedCommunityBot(commands.Bot):
             title=title,
             description=description,
             color=color,
-            timestamp=datetime.now(pytz.utc)
             timestamp=datetime.now(self.brasilia_tz)
         )
         return embed
 
-    @staticmethod
-    async def delete_message_user(ctx):
     async def delete_message_user(self, ctx: commands.Context):
         """Deleta a mensagem que invocou um comando."""
         try:
@@ -191,8 +186,6 @@ class RedCommunityBot(commands.Bot):
         except discord.HTTPException:
             pass
 
-    @staticmethod
-    def create_user_embed(author: discord.User, guild: discord.Guild, description: str, *, title: str = "", color: int = 0xff0000) -> discord.Embed:
     def create_user_embed(self, author: discord.User, guild: discord.Guild, description: str, *, title: str = "", color: discord.Color = None) -> discord.Embed:
         """
         Cria um discord.Embed padronizado com o autor e servidor em destaque.
@@ -204,7 +197,7 @@ class RedCommunityBot(commands.Bot):
             title=title,
             description=description,
             color=color,
-            timestamp=datetime.now(pytz.utc)
+            timestamp=datetime.now(self.brasilia_tz)
         )
         embed.set_author(name=f"{guild.name} - {author.display_name}", icon_url=author.display_avatar.url)
         return embed
