@@ -21,8 +21,8 @@ Bot modular de moderação e gestão para servidores Discord, desenvolvido em Py
 
 1. Clone o repositório:
    ```bash
-   git clone https://github.com/Wuzuy/red_staff_squarecloud.git
-   cd red_staff_squarecloud
+   git clone https://github.com/Wuzuy/red-staff-bot.git
+   cd red-staff-bot
    ```
 
 2. Instale as dependências:
