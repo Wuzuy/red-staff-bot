@@ -221,7 +221,7 @@ class RedCommunityBot(commands.Bot):
                 for bd in sorted(birthdays_by_month[month_num], key=lambda x: x['day']):
                     user = self.get_user(bd['user_id']) # Tenta pegar o usuário do cache
                     if user:
-                        value += f"<a:seta:EMOJI_SETA> `{bd['day']}` - <@{bd['user_id']}>\n"
+                        value += f"➡️ `{bd['day']}` - <@{bd['user_id']}>\n"
                 fields.append({"name": f"**__{month_name}__**", "value": value, "inline": False})
 
         return fields

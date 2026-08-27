@@ -38,7 +38,7 @@ class DmConfigView(BaseView):
         new_embed = await self.generate_embed()
         await interaction.response.edit_message(embed=new_embed, view=self)
 
-    @discord.ui.button(label="Adicionar", style=discord.ButtonStyle.success, emoji="<:adicionar:EMOJI_ADICIONAR>", row=0)
+    @discord.ui.button(label="Adicionar", style=discord.ButtonStyle.success, emoji="✅", row=0)
     async def add_role(self, interaction: discord.Interaction, button: discord.ui.Button):
         select = discord.ui.RoleSelect(placeholder="Selecione os cargos para adicionar...", min_values=1, max_values=25)
         
@@ -55,7 +55,7 @@ class DmConfigView(BaseView):
         self.add_item(select)
         await interaction.response.edit_message(view=self)
 
-    @discord.ui.button(label="Remover", style=discord.ButtonStyle.danger, emoji="<:remover:EMOJI_REMOVER>", row=0)
+    @discord.ui.button(label="Remover", style=discord.ButtonStyle.danger, emoji="❌", row=0)
     async def remove_role(self, interaction: discord.Interaction, button: discord.ui.Button):
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -82,7 +82,7 @@ class DmConfigView(BaseView):
         self.add_item(select)
         await interaction.response.edit_message(view=self)
 
-    @discord.ui.button(label="Adicionar Todos", style=discord.ButtonStyle.secondary, emoji="<:correto:EMOJI_CORRETO>", row=1)
+    @discord.ui.button(label="Adicionar Todos", style=discord.ButtonStyle.secondary, emoji="✅", row=1)
     async def add_all(self, interaction: discord.Interaction, button: discord.ui.Button):
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -92,7 +92,7 @@ class DmConfigView(BaseView):
             conn.commit()
         await self.update_message(interaction)
 
-    @discord.ui.button(label="Remover Todos", style=discord.ButtonStyle.secondary, emoji="<:errado:EMOJI_ERRADO>", row=1)
+    @discord.ui.button(label="Remover Todos", style=discord.ButtonStyle.secondary, emoji="❌", row=1)
     async def remove_all(self, interaction: discord.Interaction, button: discord.ui.Button):
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -131,7 +131,7 @@ class ConfigPermView(BaseView):
         new_embed = await self.generate_embed()
         await interaction.response.edit_message(embed=new_embed, view=self)
 
-    @discord.ui.button(label="Adicionar", style=discord.ButtonStyle.success, emoji="<:adicionar:EMOJI_ADICIONAR>")
+    @discord.ui.button(label="Adicionar", style=discord.ButtonStyle.success, emoji="✅")
     async def add_role(self, interaction: discord.Interaction, button: discord.ui.Button):
         select = discord.ui.RoleSelect(placeholder="Selecione os cargos para adicionar...", min_values=1, max_values=25)
         
@@ -148,7 +148,7 @@ class ConfigPermView(BaseView):
         self.add_item(select)
         await interaction.response.edit_message(view=self)
 
-    @discord.ui.button(label="Remover", style=discord.ButtonStyle.danger, emoji="<:remover:EMOJI_REMOVER>")
+    @discord.ui.button(label="Remover", style=discord.ButtonStyle.danger, emoji="❌")
     async def remove_role(self, interaction: discord.Interaction, button: discord.ui.Button):
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -179,7 +179,7 @@ class ConfigPermView(BaseView):
         self.add_item(select)
         await interaction.response.edit_message(view=self)
 
-    @discord.ui.button(label="Remover Todos", style=discord.ButtonStyle.secondary, emoji="<:errado:EMOJI_ERRADO>")
+    @discord.ui.button(label="Remover Todos", style=discord.ButtonStyle.secondary, emoji="❌")
     async def remove_all(self, interaction: discord.Interaction, button: discord.ui.Button):
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()

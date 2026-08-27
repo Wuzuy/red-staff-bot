@@ -1,10 +1,16 @@
+import os
 import discord
 from discord.ext import commands
 import sqlite3
 from database.database_manager import DB_FILE
 
-CALL_SERVERS_IDS = [CALL_SERVER_ID, CALL_SERVER_ID_2]
-CHAT_SERVERS_IDS = [CALL_SERVER_ID]
+
+def _parse_id_list(raw: str) -> list[int]:
+    return [int(x.strip()) for x in raw.split(",") if x.strip()]
+
+
+CALL_SERVERS_IDS = _parse_id_list(os.getenv("CALL_SERVERS_IDS", ""))
+CHAT_SERVERS_IDS = _parse_id_list(os.getenv("CHAT_SERVERS_IDS", ""))
 
 async def is_super_admin(ctx: commands.Context) -> bool:
     """Verifica se o autor é um Super Admin (definido no bot.py)."""
